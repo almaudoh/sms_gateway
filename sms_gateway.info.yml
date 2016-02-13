@@ -1,0 +1,8 @@
+name: SMS Gateways
+type: module
+description: 'Provides multiple SMS Gateways for the SMS Framework.'
+package: 'SMS Framework'
+core: 8.x
+version: 1.x
+dependencies:
+  - sms

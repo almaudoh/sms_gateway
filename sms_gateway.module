@@ -1,0 +1,72 @@
+<?php
+
+/**
+ * @file
+ * Module to manage a few prebuilt gateways
+ * 1. Infobip
+ * 2. RouteSMS
+ * 3. ...
+ */
+
+/**
+ * Implements hook_theme().
+ */
+function sms_gateway_theme($existing, $type, $theme, $path) {
+  return [
+    'sms-gateway-infobip-post-xml' => [
+      'variables' => [
+        'config' => [],
+      ],
+    ],
+  ];
+}
+
+/**
+ * Implementation of hook_gateway_info().
+ */
+function sms_gateway_gateway_info() {
+	return array(
+		'infobip' => array(
+			'name' => t('Infobip'),
+			'class' => 'SMS_INFOBIP_GATEWAY',
+			'delivery process' => 'sms_infobip_delivery_process',
+			'delivery get' => 'sms_infobip_delivery_get',
+					//      'send form' => 'sms_infobip_send_form',
+		),
+    'debug' => array(
+      'name' => 'Debug Gateway',
+      'class' => 'SMS_DEBUG_GATEWAY',
+      'delivery process' => 'sms_debug_delivery_process',
+      'delivery get' => 'sms_debug_delivery_get',
+    ),
+	);
+}
+
+/**
+ * @FIXME
+ * This implementation of hook_menu() cannot be automatically converted because
+ * it contains logic (i.e., branching statements, function calls, object
+ * instantiation, etc.) You will need to convert it manually. Sorry!
+ *
+ * For more information on how to convert hook_menu() to Drupal 8's new routing
+ * and linking systems, see https://api.drupal.org/api/drupal/core%21includes%21menu.inc/group/menu/8
+ */
+
+function sms_gateway_menu() {
+	$items = array();
+	$items['sms/deliveryreport/%'] = array(
+// 		'title' => 'SMS Framework',
+		'description' => t('Callbacks for delivery reports'),
+		'page callback' => 'smsgateway_delivery_report',
+		'page arguments' => array(2),
+		'access callback' => TRUE,
+	);
+}
+
+function smsgateway_delivery_report($gatewayname) {
+	$gateway = sms_gateways('gateway', $gatewayname);
+	if ($gateway) {
+		$gateway->delivery_report();
+	}
+}
+
