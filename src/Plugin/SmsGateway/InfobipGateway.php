@@ -6,6 +6,7 @@ use Drupal\Component\Serialization\Json;
 use Drupal\sms_gateway\Plugin\SmsGateway\Infobip\CreditsResponseHandler;
 use Drupal\sms_gateway\Plugin\SmsGateway\Infobip\DeliveryReportHandler;
 use Drupal\sms_gateway\Plugin\SmsGateway\Infobip\MessageResponseHandler;
+use GuzzleHttp\Exception\ClientException;
 use Psr\Http\Message\ResponseInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -94,8 +95,20 @@ class InfobipGateway extends DefaultGatewayPluginBase {
     }
     $url = $this->buildRequestUrl($command, $config);
 
-    return $this->handleResponse($this->httpRequest($url, $query, $method, $headers, $body), $command, $data);
-	}
+    try {
+      $response = $this->httpRequest($url, $query, $method, $headers, $body);
+    }
+    catch (ClientException $e) {
+      // This error should not get to the user.
+      $t_args = ['@code' => $e->getCode(), '@message' => $e->getMessage()];
+      $this->logger()->error('An error occurred during the HTTP request: (@code) @message', $t_args);
+      return [
+        'status' => FALSE,
+        'error_message' => $this->t('An error occurred during the HTTP request: (@code) @message', $t_args),
+      ];
+    }
+    return $this->handleResponse($response, $command, $data);
+  }
 
   /**
    * Handles the response from the SMS gateway.
@@ -116,8 +129,8 @@ class InfobipGateway extends DefaultGatewayPluginBase {
     if ($response->getStatusCode() !== 200) {
       return [
         'status' => FALSE,
-        'error_message' => $this->t('An error occurred during the HTTP request: @error',
-          ['@error' => $response->getReasonPhrase()]),
+        'error_message' => $this->t('An error occurred during the HTTP request: @code @message',
+          ['@code' => $response->getStatusCode(), '@message' => $response->getReasonPhrase()]),
       ];
     }
     else {
@@ -131,7 +144,7 @@ class InfobipGateway extends DefaultGatewayPluginBase {
     // codes) are different for each endpoint (i.e. API resource) called, we have
     // to implement different response handlers for each endpoint.
     $result = [];
-    if ($body = $response->getBody()) {
+    if ($body = (string) $response->getBody()) {
       switch ($this->getResourceForCommand($command)) {
         case self::ENDPOINT_SEND_ADVANCED:
           $handler = new MessageResponseHandler();

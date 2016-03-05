@@ -10,6 +10,16 @@ use Drupal\sms\Message\SmsDeliveryReport;
  */
 class DeliveryReportHandler extends InfobipResponseHandlerBase {
 
+  /**
+   * Handles the response and turns it into list of delivery report objects.
+   *
+   * @param string $body
+   *   The JSON-encoded response.
+   * @param string $gateway_name
+   *   The config name of the gateway calling this handler.
+   *
+   * @return \Drupal\sms\Message\SmsDeliveryReportInterface[]
+   */
   public function handle($body, $gateway_name) {
     return $this->parseDeliveryReport($body, $gateway_name);
   }
@@ -17,8 +27,10 @@ class DeliveryReportHandler extends InfobipResponseHandlerBase {
   /**
    * Processes Infobip delivery reports into SMS delivery report objects.
    *
-   * @param $body
-   * @param $gateway_name
+   * @param string $body
+   *   The JSON-encoded response.
+   * @param string $gateway_name
+   *   The config name of the gateway calling this handler.
    *
    * @return \Drupal\sms\Message\SmsDeliveryReportInterface[]
    */

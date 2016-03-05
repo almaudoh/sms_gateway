@@ -20,7 +20,7 @@ class MessageResponseHandler extends InfobipResponseHandlerBase {
    *   The name of the gateway instance that sent the message.
    *
    * @return array
-   *   Structured key-value array containing the processed result.
+   *   A structured key-value array containing the processed result.
    */
   public function handle($body, $gateway_name) {
     $response = Json::decode($body);

@@ -4,12 +4,13 @@ namespace Drupal\sms_gateway\Plugin\SmsGateway;
 
 use Drupal\Component\Utility\Random;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\sms\Message\SmsMessage;
 use Drupal\sms\Message\SmsMessageInterface;
 use Drupal\sms\Message\SmsMessageResult;
 use Drupal\sms\Plugin\SmsGatewayPluginBase;
 
 /**
- * Provides a default implementation of the Gateway interface with additional
+ * Provides a default implementation of SmsGatewayPluginInterface with additional
  * helper functions.
  *
  * Most gateways should subclass this for easier implementations.
@@ -102,13 +103,14 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase {
    */
   protected function doSend(SmsMessageInterface $sms, array $options) {
     // Initialize the composite results array.
-    $results = array(
+    $default_result = array(
       'status' => FALSE,
       'error_message' => '',
       'credit_used' => 0,
       'credit_balance' => 0,
-      'report' => array(),
+      'reports' => array(),
     );
+    $results = $default_result;
     // Batch the recipients according to the limits of the SMS gateway.
     $recipients = $sms->getRecipients();
     $max_size = $this->maxRecipientCount();
@@ -125,15 +127,18 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase {
           'recipients' => $batch,
           'message' => $sms->getMessage(),
           'sender' => $sms->getSender(),
-        ], $options);
+          'options' => $options,
+        ]) + $default_result;
         // Combine current batch results with cumulative results.
-        @$results['status'] = $results['status'] || $batch_result['status'];
-        @$results['error_message'] .= "\n" . $batch_result['message'];
-        @$results['credit_used'] += $batch_result['credit_used'];
-        @$results['credit_balance'] = $batch_result['credit_balance'];
-        @$results['report'] += (array)$batch_result['report'];
+        $results['status'] = $results['status'] || $batch_result['status'];
+        $results['error_message'] .= "\n" . $batch_result['error_message'];
+        $results['credit_used'] += $batch_result['credit_used'];
+        $results['credit_balance'] = $batch_result['credit_balance'];
+        $results['reports'] += (array)$batch_result['reports'];
       }
     }
+    // Remove extra new-lines from the message.
+    $results['error_message'] = trim($results['error_message']);
     return $results;
   }
 
@@ -163,8 +168,8 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase {
    * @return array
    *   A structured array describing the results of the SMS command.
    *
-   * @see \Drupal\sms\Plugin\SmsGatewayPluginInterface::send() for the structure
-   *   of the return value.
+   * @see \Drupal\sms\Message\SmsMessageResultInterface for the structure of the
+   *   return value.
    */
   abstract protected function doCommand($command, array $data, array $config = NULL);
 
@@ -204,7 +209,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase {
    *
    * @param string $url
    *   The URL of the SMS gateway server to make the request.
-   * @param array $body
+   * @param array $query
    *   (optional) An array of key-value pairs used to build up the query string.
    *   Defaults to an empty array.
    * @param string $method

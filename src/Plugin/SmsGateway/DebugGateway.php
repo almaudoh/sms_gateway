@@ -1,10 +1,5 @@
 <?php
 
-/**
- * @file
- * Contains \Drupal\sms\Plugin\SmsGateway\DebugGateway
- */
-
 namespace Drupal\sms\Plugin\SmsGateway;
 
 use Drupal\Core\Form\FormStateInterface;
@@ -12,6 +7,7 @@ use Drupal\sms\Message\SmsMessageInterface;
 use Drupal\sms\Message\SmsMessageResult;
 use Drupal\sms\Plugin\SmsGatewayPluginBase;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * @SmsGateway(
@@ -60,7 +56,7 @@ class DebugGateway extends SmsGatewayPluginBase {
 //  public function send($command, array $data, array $options = NULL) {
   public function send(SmsMessageInterface $sms, array $options) {
     // Log the messages and generate message ID's for each sender.
-    $report = array();
+    $reports = [];
     $msg_ids = '';
     foreach ($sms->getRecipients() as $number) {
       // Coin toss to determine if message 'fails' or 'succeeds'.
@@ -69,18 +65,18 @@ class DebugGateway extends SmsGatewayPluginBase {
         // Generate random error message.
         $err = rand(-13, -1);
         $msg_ids .= $err . "\n";
-        $report[$number] = array(
+        $reports[$number] = [
           'status' => FALSE,
           'message_id' => '',
           'error_code' => $err,
           'error_message' => self::$errorCodes[$err],
-        );
+        ];
       }
       else {
         // Falls into the 'succeeded' percentage.
         $msg_id = $this->randomID();
         $msg_ids .= $msg_id . "\n";
-        $report[$number] = array(
+        $reports[$number] = array(
           'status' => TRUE,
           'message_id' => $msg_id,
           'error_code' => 0,
@@ -95,16 +91,16 @@ class DebugGateway extends SmsGatewayPluginBase {
     // Save the message IDs for delivery report generation.
     // @todo Optimize this later
     $delivery_report = $this->config()->get('delivery_report');
-    $delivery_report[] = $report;
+    $delivery_report[] = $reports;
     $this->config()->set('delivery_report', $delivery_report)->save();
 
-    return new SmsMessageResult($report);
+    return new SmsMessageResult($reports);
   }
 
   /**
    * {@inheritdoc}
    */
-  public function parseDeliveryReports(Request $request) {
+  public function parseDeliveryReports(Request $request, Response $response) {
     $reports = array(
       'status' => TRUE,
       'data' => $this->config()->get('delivery_report'),
