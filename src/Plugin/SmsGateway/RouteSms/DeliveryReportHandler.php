@@ -20,14 +20,13 @@ class DeliveryReportHandler {
    *
    * @return \Drupal\sms\Message\SmsDeliveryReportInterface[]
    */
-  public function parseDeliveryReport($post, $gateway_name) {
+  public function parseDeliveryReport($post) {
     return new SmsDeliveryReport([
       'recipient' => $_POST['sMobileNo'],
       'message_id' => trim($post['sMessageId']),
       'time_sent' => date_create_from_format("Y-m-d H:i:s", $post['dtSubmit'], timezone_open('UTC'))->getTimestamp(),
       'time_delivered' => date_create_from_format("Y-m-d H:i:s", $post['dtDone'], timezone_open('UTC'))->getTimestamp(),
       'status' => self::$statusMap[$post['sStatus']],
-      'gateway' => $gateway_name,
       'gateway_status' => $post['sStatus'],
       'gateway_status_code' => $post['sStatus'],
       'gateway_status_description' => $post['sStatus'],

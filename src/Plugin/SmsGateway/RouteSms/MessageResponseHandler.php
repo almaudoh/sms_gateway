@@ -23,10 +23,10 @@ class MessageResponseHandler {
    * @return array
    *   A structured key-value array containing the processed result.
    */
-  public function handle($body, $gateway_name) {
+  public function handle($body) {
     $result = [
       'status' => FALSE,
-      'message' => new TranslatableMarkup('There was a problem with the request.'),
+      'error_message' => new TranslatableMarkup('There was a problem with the request'),
       'reports' => [],
     ];
     if ($body) {
@@ -42,22 +42,21 @@ class MessageResponseHandler {
       // Assume 4-digit codes.
       $first_code = substr($response[0], 0, 4);
       if (count($response) < 2 && ($error = $this->checkError($first_code)) !== FALSE) {
-        $result['message'] = $error['description'];
+        $result['error_message'] = $error['description'];
       }
       else {
         // Message Submitted Successfully, in this case response format is:
         // 1701|<CELL_NO>|{<MESSAGE ID>},<ERROR CODE>|<CELL_NO>|{<MESSAGE ID>},...
         $result['status'] = TRUE;
-        $result['message'] = new TranslatableMarkup('Message submitted successfully');
+        $result['error_message'] = new TranslatableMarkup('Message submitted successfully');
         foreach ($response as $data) {
-          list($error_code, $number, $message_id) = explode('|', $data);
-          $error = $this->checkError($error_code);
-          $result['reports'][$number] = new SmsDeliveryReport([
-            'recipient' => $number,
+          $info = explode('|', $data);
+          $error = $this->checkError($info[0]);
+          $result['reports'][$info[1]] = new SmsDeliveryReport([
+            'recipient' => $info[1],
             'status' => $error ? SmsDeliveryReportInterface::STATUS_REJECTED : SmsDeliveryReportInterface::STATUS_SENT,
-            'message_id' => $message_id,
-            'gateway' => $gateway_name,
-            'error_code' => $error ? static::$errorMap[$error_code] : 0,
+            'message_id' => isset($info[2]) ? $info[2] : '',
+            'error_code' => $error ? static::$errorMap[$info[0]] : 0,
             // @todo: Should we standardize the error messages?
             'error_message' => $error ? $error['description'] : '',
             'gateway_error_code' => $error ? $error['code'] : '',

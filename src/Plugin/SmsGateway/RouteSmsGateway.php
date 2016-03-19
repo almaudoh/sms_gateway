@@ -6,6 +6,7 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\sms_gateway\Plugin\SmsGateway\RouteSms\DeliveryReportHandler;
 use Drupal\sms_gateway\Plugin\SmsGateway\RouteSMS\MessageResponseHandler;
+use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\ResponseInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -35,12 +36,8 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
     $method = 'GET';
     $body = '';
     $query = [];
+    $headers = [];
     $config = isset($config) ? $config : $this->getConfiguration();
-    // Set up common headers for the REST request.
-    $headers = [
-      'Content-Type' => 'application/json',
-      'Accept' => 'application/json',
-    ];
     if ($command === 'send') {
       // Default values for send command.
       $data += array(
@@ -57,8 +54,9 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
     // Delivery report push url. The standard format of the API is as below.
     // http://ip/app/status?unique_id=%7&reason=%2&to=%p&from=%P&time=%t&status=%d
     // http://<hostname>:Port/example.php?sender=%P&mobile=%p&dtSent=%t&msgid=%I&status=%d
-    if ($config['reports'] && $dlr_url = $this->getDeliveryReportPath()) {
+    if ($command == 'send' && $config['reports'] && isset($data['options']['delivery_report_url']) && $dlr_url = $data['options']['delivery_report_url']) {
       $query['dlr'] = '1';
+      // @todo Do we need the additional query args. It's not in their API doc.
       $query['dlr-url'] = urlencode($dlr_url . '?sender=%P&recipient=%p&time_delivered%t&message_id=%I&status=%d&uuid=%7&reason=%2');
     }
 
@@ -81,12 +79,23 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
       default:
         return array(
           'status' => FALSE,
-          'message' => $this->t('An error has occurred: Invalid command for gateway'),
+          'error_message' => $this->t('An error has occurred: Invalid command for gateway'),
         );
     }
     $url = $this->buildRequestUrl($command, $config);
 
-    return $this->handleResponse($this->httpRequest($url, $query, $method, $headers, $body), $command, $data);
+    try {
+      return $this->handleResponse($this->httpRequest($url, $query, $method, $headers, $body), $command, $data);
+    }
+    catch (GuzzleException $e) {
+      // This error should not get to the user.
+      $t_args = ['@code' => $e->getCode(), '@message' => $e->getMessage()];
+      $this->logger()->error('An error occurred during the HTTP request: (@code) @message', $t_args);
+      return [
+        'status' => FALSE,
+        'error_message' => $this->t('An error occurred during the HTTP request: (@code) @message', $t_args),
+      ];
+    }
   }
 
   /**
@@ -106,24 +115,22 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
   protected function handleResponse(ResponseInterface $response, $command, $data) {
     // Check for HTTP errors.
     if ($response->getStatusCode() !== 200) {
+      $this->errors[] = [
+        'code' => $response->getStatusCode(),
+        'message' => $response->getReasonPhrase(),
+      ];
       return [
         'status' => FALSE,
         'error_message' => $this->t('An error occurred during the HTTP request: @error',
           ['@error' => $response->getReasonPhrase()]),
       ];
     }
-    else {
-      if ($command == 'test') {
-        // No need for further processing if it was just a gateway test.
-        return ['status' => TRUE];
-      }
-    }
 
     // Call the message response handler to handle the message response.
     $result = [];
     if ($body = (string) $response->getBody()) {
       $handler = new MessageResponseHandler();
-      $result = $handler->handle($body, $this->gatewayName);
+      $result = $handler->handle($body);
     }
 
     return $result;
@@ -153,7 +160,16 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
    */
   public function parseDeliveryReports(Request $request, Response $response) {
     $handler = new DeliveryReportHandler();
-    return $handler->parseDeliveryReport($request->request->all(), $this->gatewayName);
+    return $handler->parseDeliveryReport($request->request->all());
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function defaultConfiguration() {
+    return [
+      'test_number' => '',
+    ] + parent::defaultConfiguration();
   }
 
   /**
@@ -169,7 +185,7 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
       '#size' => 30,
       '#maxlength' => 64,
       '#default_value' => $this->configuration['test_number'],
-      '#element_validate' => ['element_validate_integer_positive'],
+      '#min' => 1,
     );
 
     return $form;
@@ -181,7 +197,7 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
   public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
     $result = $this->doCommand('test', [], $form_state->getValues());
     if (!$result['status']) {
-      $form_state->setErrorByName('', new TranslatableMarkup('A RouteSMS gateway error occurred: @error.', array('@error' => $result['message'])));
+      $form_state->setErrorByName('', new TranslatableMarkup('A RouteSMS gateway error occurred: @error.', array('@error' => $result['error_message'])));
     }
   }
 
