@@ -14,13 +14,11 @@ class CreditsResponseHandler extends InfobipResponseHandlerBase {
    *
    * @param string $body
    *   The body of the response.
-   * @param string $gateway_name
-   *   The config name of the gateway calling this handler.
    *
    * @return array
    *   A structured array containing the credit information.
    */
-  public function handle($body, $gateway_name) {
+  public function handle($body) {
     $response = Json::decode($body);
     if (!isset($response['balance'])) {
       $message = t('Not available');
@@ -33,7 +31,6 @@ class CreditsResponseHandler extends InfobipResponseHandlerBase {
     return [
       'status' => TRUE,
       'credit_balance' => $message,
-      'gateway' => $gateway_name,
       'original' => $response,
     ];
   }

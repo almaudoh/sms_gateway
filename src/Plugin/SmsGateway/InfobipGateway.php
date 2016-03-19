@@ -6,7 +6,7 @@ use Drupal\Component\Serialization\Json;
 use Drupal\sms_gateway\Plugin\SmsGateway\Infobip\CreditsResponseHandler;
 use Drupal\sms_gateway\Plugin\SmsGateway\Infobip\DeliveryReportHandler;
 use Drupal\sms_gateway\Plugin\SmsGateway\Infobip\MessageResponseHandler;
-use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\ResponseInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -59,11 +59,11 @@ class InfobipGateway extends DefaultGatewayPluginBase {
           return ['to' => $recipient];
         }, $data['recipients']);
         $message['from'] = $data['sender'];
-        $message['text'] = $this->cleanMessage($data['message']);
+        $message['text'] = $data['message'];
         $message['flash'] = (bool) $data['isflash'];
-        // Configure push delivery report URL is specified.
+        // Configure push delivery reports if URL is specified.
         if ($this->configuration['reports']) {
-          $message['notifyUrl'] = $this->getDeliveryReportPath();
+          $message['notifyUrl'] = $data['options']['delivery_report_url'];
           $message['notifyContentType'] = 'application/json';
         }
         // Set the body to JSON encoded data.
@@ -96,9 +96,9 @@ class InfobipGateway extends DefaultGatewayPluginBase {
     $url = $this->buildRequestUrl($command, $config);
 
     try {
-      $response = $this->httpRequest($url, $query, $method, $headers, $body);
+      return $this->handleResponse($this->httpRequest($url, $query, $method, $headers, $body), $command, $data);
     }
-    catch (ClientException $e) {
+    catch (GuzzleException $e) {
       // This error should not get to the user.
       $t_args = ['@code' => $e->getCode(), '@message' => $e->getMessage()];
       $this->logger()->error('An error occurred during the HTTP request: (@code) @message', $t_args);
@@ -107,7 +107,6 @@ class InfobipGateway extends DefaultGatewayPluginBase {
         'error_message' => $this->t('An error occurred during the HTTP request: (@code) @message', $t_args),
       ];
     }
-    return $this->handleResponse($response, $command, $data);
   }
 
   /**
@@ -127,9 +126,13 @@ class InfobipGateway extends DefaultGatewayPluginBase {
   protected function handleResponse(ResponseInterface $response, $command, $data) {
     // Check for HTTP errors.
     if ($response->getStatusCode() !== 200) {
+      $this->errors[] = [
+        'code' => $response->getStatusCode(),
+        'message' => $response->getReasonPhrase(),
+      ];
       return [
         'status' => FALSE,
-        'error_message' => $this->t('An error occurred during the HTTP request: @code @message',
+        'error_message' => $this->t('An error occurred during the HTTP request: (@code) @message',
           ['@code' => $response->getStatusCode(), '@message' => $response->getReasonPhrase()]),
       ];
     }
@@ -148,18 +151,18 @@ class InfobipGateway extends DefaultGatewayPluginBase {
       switch ($this->getResourceForCommand($command)) {
         case self::ENDPOINT_SEND_ADVANCED:
           $handler = new MessageResponseHandler();
-          $result = $handler->handle($body, $this->gatewayName);
+          $result = $handler->handle($body);
           break;
 
         case self::ENDPOINT_CREDIT_BALANCE:
           $handler = new CreditsResponseHandler();
-          $result = $handler->handle($body, $this->gatewayName);
+          $result = $handler->handle($body);
           break;
 
         case self::ENDPOINT_DELIVERY_REPORT: // Fallthrough
         default:
           $handler = new DeliveryReportHandler();
-          $result = $handler->handle($body, $this->gatewayName);
+          $result = $handler->handle($body);
       }
     }
     return $result;
@@ -186,7 +189,7 @@ class InfobipGateway extends DefaultGatewayPluginBase {
    */
   public function parseDeliveryReports(Request $request, Response $response) {
     $handler = new DeliveryReportHandler();
-    return $handler->handle($request->getContent(), $this->gatewayName);
+    return $handler->handle($request->getContent());
   }
 
 }

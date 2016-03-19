@@ -2,7 +2,6 @@
 
 namespace Drupal\Tests\sms_gateway\Unit\Plugin\SmsGateway\Infobip;
 
-use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\sms\Message\SmsDeliveryReport;
 use Drupal\sms\Message\SmsDeliveryReportInterface;
 use Drupal\sms\Plugin\SmsGatewayPluginInterface;
@@ -22,17 +21,12 @@ class DeliveryReportHandlerTest extends UnitTestCase {
   public function testHandleMethod($raw, $expected_message_count, array $expected_result) {
     $handler = new DeliveryReportHandler();
     /** @var \Drupal\sms\Message\SmsDeliveryReportInterface[] $reports */
-    $reports = $handler->handle($raw, 'test_gateway');
+    $reports = $handler->handle($raw);
     $this->assertEquals($expected_message_count, count($reports));
     $this->assertEquals($expected_result, $reports);
   }
 
   public function providerMessageResponseHandler() {
-    $defaults = [
-      'status' => TRUE,
-      'message' => '',
-      'report' => []
-    ];
     $report1 = [
       'status' => SmsDeliveryReportInterface::STATUS_SENT,
       'delivered_time' => REQUEST_TIME,

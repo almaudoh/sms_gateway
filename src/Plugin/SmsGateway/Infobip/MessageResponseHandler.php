@@ -22,20 +22,19 @@ class MessageResponseHandler extends InfobipResponseHandlerBase {
    * @return array
    *   A structured key-value array containing the processed result.
    */
-  public function handle($body, $gateway_name) {
+  public function handle($body) {
     $response = Json::decode($body);
     if ($response['messages']) {
       $result = [
         'status' => TRUE,
-        'message' => new TranslatableMarkup('Message successfully delivered.'),
+        'error_message' => new TranslatableMarkup('Message successfully delivered.'),
         'reports' => [],
       ];
       foreach ($response['messages'] as $message) {
-        $result['report'][$message['to']] = new SmsDeliveryReport([
+        $result['reports'][$message['to']] = new SmsDeliveryReport([
           'recipient' => $message['to'],
           'status' => $this->mapStatus($message['status']),
           'message_id' => $message['messageId'],
-          'gateway' => $gateway_name,
         ] + (isset($message['error']) ? $this->parseError($message['error']) : []));
       }
     }
@@ -43,29 +42,11 @@ class MessageResponseHandler extends InfobipResponseHandlerBase {
       $result = [
         // @todo should we check the HTTP response code?
         'status' => FALSE,
-        'message' => new TranslatableMarkup('Unknown SMS Gateway error'),
+        'error_message' => new TranslatableMarkup('Unknown SMS Gateway error'),
+        'reports' => [],
       ];
     }
     return $result;
   }
-
-private $x = <<<EOF
-{
-   "messages":[
-      {
-         "to":"41793026727",
-         "status":{
-            "groupId":0,
-            "groupName":"ACCEPTED",
-            "id":0,
-            "name":"MESSAGE_ACCEPTED",
-            "description":"Message accepted"
-         },
-         "smsCount":1,
-         "messageId":"2250be2d4219-3af1-78856-aabe-1362af1edfd2"
-      }
-   ]
-}
-EOF;
 
 }

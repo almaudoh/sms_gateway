@@ -18,7 +18,7 @@ class CreditsResponseHandlerTest extends UnitTestCase {
   public function testHandleMethod($raw, array $expected_result) {
     $handler = new CreditsResponseHandler();
     /** @var \Drupal\sms\Message\SmsDeliveryReportInterface[] $reports */
-    $reports = $handler->handle($raw, 'test_gateway');
+    $reports = $handler->handle($raw);
     $this->assertEquals($expected_result, $reports);
   }
 
@@ -29,7 +29,6 @@ class CreditsResponseHandlerTest extends UnitTestCase {
         [
           'status' => TRUE,
           'credit_balance' => 'EUR 47.79134',
-          'gateway' => 'test_gateway',
           'original' => [
             'balance' => 47.79134,
             'currency' => 'EUR',

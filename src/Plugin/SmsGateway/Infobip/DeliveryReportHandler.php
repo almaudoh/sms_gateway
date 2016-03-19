@@ -20,8 +20,8 @@ class DeliveryReportHandler extends InfobipResponseHandlerBase {
    *
    * @return \Drupal\sms\Message\SmsDeliveryReportInterface[]
    */
-  public function handle($body, $gateway_name) {
-    return $this->parseDeliveryReport($body, $gateway_name);
+  public function handle($body) {
+    return $this->parseDeliveryReport($body);
   }
 
   /**
@@ -29,12 +29,10 @@ class DeliveryReportHandler extends InfobipResponseHandlerBase {
    *
    * @param string $body
    *   The JSON-encoded response.
-   * @param string $gateway_name
-   *   The config name of the gateway calling this handler.
    *
    * @return \Drupal\sms\Message\SmsDeliveryReportInterface[]
    */
-  protected function parseDeliveryReport($body, $gateway_name) {
+  protected function parseDeliveryReport($body) {
     $response = Json::decode($body);
     $reports = [];
     foreach ($response['results'] as $result) {
@@ -44,7 +42,6 @@ class DeliveryReportHandler extends InfobipResponseHandlerBase {
         'send_time' => $result['sentAt'],
         'delivered_time' => $result['doneAt'],
         'status' => $this->mapStatus($result['status']),
-        'gateway' => $gateway_name,
         'gateway_status' => $result['status']['name'],
         'gateway_status_code' => $result['status']['id'],
         'gateway_status_description' => $result['status']['description'],
