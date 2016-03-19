@@ -102,7 +102,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
       'error_message' => '',
       'credit_used' => 0,
       'credit_balance' => 0,
-      'reports' => array(),
+      'reports' => [],
     ];
     $results = $default_result;
     // Batch the recipients according to the limits of the SMS gateway.
@@ -250,7 +250,6 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
     $search = str_split('ëí`ìî');
     $replace = str_split('\'\'\'""');
     $message = str_replace($search, $replace, $message);
-    $message = urlencode($message);
     return $message;
   }
 
@@ -264,7 +263,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    *   The cleaned up sender.
    */
   protected function cleanSender($sender) {
-    return str_replace(' ', '', urlencode(substr($sender, 0, 12)));
+    return str_replace(' ', '', urlencode(substr($sender, 0, 11)));
   }
 
   /**
@@ -288,6 +287,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
       'password' => '',
       'method' => 'GET',
       'reports' => TRUE,
+      'no_validate' => FALSE,
     ] + parent::defaultConfiguration();
   }
 
@@ -350,6 +350,12 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
       '#maxlength' => 64,
       '#default_value' => $config['password'],
     ];
+    $form['no_validate'] = [
+      '#type' => 'checkbox',
+      '#title' => $this->t('Do not validate gateway settings'),
+      '#default_value' => $config['no_validate'],
+      '#weight' => 10,
+    ];
     return $form;
   }
 
@@ -359,8 +365,17 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
   public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
     $response = $this->test($form_state->getValues());
     if (!$response['status']) {
-      $form_state->setErrorByName('', $this->t('The settings could not be validated. A gateway error occurred: @error.',
-        array('@error' => $response['error_message'])));
+      $t_args = [
+        '@error' => $response['error_message'],
+        '@gateway' => $this->pluginDefinition['label'],
+      ];
+      if ($form_state->getValue('no_validate')) {
+        drupal_set_message($this->t('The @gateway gateway returned an error - @error.', $t_args), 'warning');
+      }
+      else {
+        $form_state->setErrorByName('', $this->t('The settings could not be validated. The @gateway gateway returned an error - @error.',
+          $t_args));
+      }
     }
   }
 
@@ -376,6 +391,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
       $this->configuration['username'] = $form_state->getValue('username');
       $this->configuration['password'] = $form_state->getValue('password');
       $this->configuration['reports'] = $form_state->getValue('reports');
+      $this->configuration['no_validate'] = $form_state->getValue('no_validate');
     }
   }
 

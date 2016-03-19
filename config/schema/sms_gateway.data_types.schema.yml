@@ -23,3 +23,6 @@ sms_gateway_settings_extended:
     reports:
       type: boolean
       label: 'Whether delivery reports should be pushed after message sending.'
+    no_validate:
+      type: boolean
+      label: 'Whether or not to validate the settings before accepting them.'

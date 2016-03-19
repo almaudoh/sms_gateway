@@ -194,10 +194,11 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
   /**
    * {@inheritdoc}
    */
-  public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
-    $result = $this->doCommand('test', [], $form_state->getValues());
-    if (!$result['status']) {
-      $form_state->setErrorByName('', new TranslatableMarkup('A RouteSMS gateway error occurred: @error.', array('@error' => $result['error_message'])));
+  public function submitConfigurationForm(array &$form, FormStateInterface $form_state) {
+    parent::submitConfigurationForm($form, $form_state);
+    // Process the gateway's submission handling only if no errors occurred.
+    if (!$form_state->getErrors()) {
+      $this->configuration['test_number'] = $form_state->getValue('test_number');
     }
   }
 
