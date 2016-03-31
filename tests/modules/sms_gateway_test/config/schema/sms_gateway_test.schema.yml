@@ -3,8 +3,12 @@ sms_gateway.settings.foo_llama:
   label: 'Foo Llamas'
   mapping:
     simulate_error:
-      type: boolean
-      label: 'Simulate a gateway error'
-    simulate_error_code:
-      type: integer
-      label: 'Simulate gateway error code'
+      type: mapping
+      label: 'Simulate Error'
+      mapping:
+        message:
+          type: string
+          label: 'Simulate a gateway error message'
+        code:
+          type: integer
+          label: 'Simulate gateway error code'

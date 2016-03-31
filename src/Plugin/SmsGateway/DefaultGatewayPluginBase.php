@@ -7,6 +7,8 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\sms\Message\SmsMessageInterface;
 use Drupal\sms\Message\SmsMessageResult;
 use Drupal\sms\Plugin\SmsGatewayPluginBase;
+use GuzzleHttp\Exception\GuzzleException;
+use Psr\Http\Message\ResponseInterface;
 
 abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements TestableGatewayPluginInterface {
 
@@ -41,11 +43,9 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    * {@inheritdoc}
    */
   public function balance() {
-    try {
-      $result = $this->doCommand('credits', []);
-    }
-    catch (\Exception $e) {
-      // Return helpful information.
+    $result = $this->doCommand('credits', []);
+    if (!$result['status']) {
+      // Request failed for some reason, so return helpful information.
       $result['credit_balance'] = 'Not currently available';
     }
     return isset($result['credit_balance']) ? $result['credit_balance'] : 0;
@@ -76,7 +76,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    *
    * Notes: 'status' of TRUE means successful communication with the SMS server
    * and success in message request. Failure of individual messages will be
-   * captured in the message report status for that number.
+   * captured in the message report status for that recipient's number.
    *
    * @param \Drupal\sms\Message\SmsMessageInterface $sms
    *   The SMS message to be sent.
@@ -159,13 +159,57 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    *   provided, the stored configuration will be used. This option is for cases
    *   where a particular configuration is to be tested.
    *
-   * @return array
+   * @return array|null
    *   A structured array describing the results of the SMS command.
    *
    * @see \Drupal\sms\Message\SmsMessageResultInterface for the structure of the
    *   return value.
    */
-  abstract protected function doCommand($command, array $data, array $config = NULL);
+  protected function doCommand($command, array $data, array $config = NULL) {
+    // Get params needed to make the HTTP request from the sub-class.
+    try {
+      $config = isset($config) ? $config : $this->getConfiguration();
+      $params = $this->getHttpParametersForCommand($command, $data, $config) + [
+          'query' => [],
+          'method' => 'GET',
+          'headers' => [],
+          'body' => '',
+        ];
+    }
+    catch (InvalidCommandException $e) {
+      return array(
+        'status' => FALSE,
+        'error_message' => $this->t('Invalid command (@command) for gateway @gateway', [
+          '@command' => $command,
+          '@gateway' => $this->getPluginId(),
+        ]),
+      );
+    }
+
+    // Catch Guzzle Exceptions and show the user a useful message.
+    try {
+      $url = $this->buildRequestUrl($command, $config);
+      return $this->handleResponse($this->httpRequest($url, $params['query'], $params['method'], $params['headers'], $params['body']), $command, $data);
+    }
+    catch (GuzzleException $e) {
+      return [
+        'status' => FALSE,
+        'error_message' => $this->t('HTTP response exception (@code) @message', [
+          '@code' => $e->getCode(),
+          '@message' => $e->getMessage()
+        ]),
+      ];
+    }
+    catch (\Exception $e) {
+      return [
+        'status' => FALSE,
+        'error_message' => $this->t('HTTP request exception (@code) @message', [
+          '@code' => $e->getCode(),
+          '@message' => $e->getMessage()
+        ]),
+      ];
+    }
+  }
 
   /**
    * Provides the web resource or path that corresponds to a command.
@@ -178,16 +222,55 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
   abstract protected function getResourceForCommand($command);
 
   /**
+   * Calculates the HTTP parameters needed to execute the command.
+   *
+   * @param string $command
+   *   The command for which the HTTP parameters are to be calculated.
+   * @param array $data
+   *   An array containing the data needed to execute the command.
+   * @param array|NULL $config
+   *   The configuration to be used for sending the message.
+   *
+   * @return array
+   *   An array containing the data needed to make a request:
+   *   - query: the query string to be put on the request.
+   *   - method: the HTTP request method.
+   *   - headers: an array containing HTTP header names and values.
+   *   - body: the string to be inserted into the HTTP body.
+   *
+   * @see \Drupal\sms_gateway\Plugin\SmsGateway\DefaultGatewayPluginBase::doCommand().
+   */
+  abstract protected function getHttpParametersForCommand($command, array $data, array $config);
+
+  /**
+   * Handles the response from the SMS gateway and returns a structured format.
+   *
+   * @param \Psr\Http\Message\ResponseInterface $response
+   *   The HTTP response to be handled.
+   * @param string $command
+   *   The command.
+   * @param array $data
+   *   Additional data used by the command.
+   *
+   * @return array
+   *   Structured key-value array containing the processed result depending on
+   *   the command.
+   */
+  abstract protected function handleResponse(ResponseInterface $response, $command, $data);
+
+  /**
    * Builds the request URL based on the settings configured for this gateway.
    *
    * @param string $command
    *   The command for which the URL is being built.
+   * @param array $config
+   *   An array containing the configuration to be used for building the URL.
    *
    * @return string
    *   The fully qualified URI for executing the specified command on the SMS
    *   server.
    */
-  protected function buildRequestUrl($command, $config) {
+  protected function buildRequestUrl($command, array $config) {
     if ($config['ssl']) {
       $scheme = 'https';
     }
@@ -301,31 +384,39 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
       '@name' => $this->pluginDefinition['label'],
     ];
 
-    $form['reports'] = [
+    $form['settings'] = [
+      '#type' => 'details',
+      '#title' => $this->t('Gateway settings'),
+      '#open' => TRUE,
+      '#tree' => TRUE,
+    ];
+
+    $form['settings']['reports'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Activate push delivery reports'),
       '#default_value' => $config['reports'],
     ];
-    $form['balance'] = [
-      '#type' => 'item',
+    $form['settings']['balance'] = [
+      '#theme_wrappers' => ['form_element'],
       '#title' => $this->t('Current balance'),
       '#markup' => $this->balance(),
     ];
-    $form['ssl'] = [
+    $form['settings']['ssl'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Use SSL Encyption'),
       '#description' => $this->t('Ensure you have SSL properly configured on your server.'),
       '#default_value' => $config['ssl'],
     ];
-    $form['server'] = [
+    $form['settings']['server'] = [
       '#type' => 'textfield',
       '#title' => $this->t('API Server URL'),
       '#description' => $this->t('The url for accessing the @name api server.', $t_args),
       '#size' => 40,
       '#maxlength' => 255,
       '#default_value' => $config['server'],
+      '#required' => TRUE,
     ];
-    $form['port'] = [
+    $form['settings']['port'] = [
       '#type' => 'number',
       '#title' => $this->t('API Server port number'),
       '#description' => $this->t('The port number for accessing the @name api server.', $t_args),
@@ -333,24 +424,27 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
       '#maxlength' => 255,
       '#default_value' => $config['port'],
       '#min' => 1,
+      '#required' => TRUE,
     ];
-    $form['username'] = [
+    $form['settings']['username'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Username'),
       '#description' => $this->t('The username on the @name account.', $t_args),
       '#size' => 40,
       '#maxlength' => 255,
       '#default_value' => $config['username'],
+      '#required' => TRUE,
     ];
-    $form['password'] = [
+    $form['settings']['password'] = [
       '#type' => 'textfield',
       '#title' => $this->t('Password'),
       '#description' => $this->t('The current password on the @name account.', $t_args),
       '#size' => 30,
       '#maxlength' => 64,
       '#default_value' => $config['password'],
+      '#required' => TRUE,
     ];
-    $form['no_validate'] = [
+    $form['settings']['no_validate'] = [
       '#type' => 'checkbox',
       '#title' => $this->t('Do not validate gateway settings'),
       '#default_value' => $config['no_validate'],
@@ -363,7 +457,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    * {@inheritdoc}
    */
   public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
-    $response = $this->test($form_state->getValues());
+    $response = $this->test($form_state->getValue('settings'));
     if (!$response['status']) {
       $t_args = [
         '@error' => $response['error_message'],
@@ -385,13 +479,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
   public function submitConfigurationForm(array &$form, FormStateInterface $form_state) {
     // Process the gateway's submission handling only if no errors occurred.
     if (!$form_state->getErrors()) {
-      $this->configuration['ssl'] = $form_state->getValue('ssl');
-      $this->configuration['server'] = $form_state->getValue('server');
-      $this->configuration['port'] = $form_state->getValue('port');
-      $this->configuration['username'] = $form_state->getValue('username');
-      $this->configuration['password'] = $form_state->getValue('password');
-      $this->configuration['reports'] = $form_state->getValue('reports');
-      $this->configuration['no_validate'] = $form_state->getValue('no_validate');
+      $this->configuration = $form_state->getValue('settings');
     }
   }
 

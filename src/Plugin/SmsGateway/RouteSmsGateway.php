@@ -32,7 +32,7 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
   /**
    * {@inheritdoc}
    */
-  protected function doCommand($command, array $data, array $config = NULL) {
+  protected function getHttpParametersForCommand($command, array $data, array $config = NULL) {
     $method = 'GET';
     $body = '';
     $query = [];
@@ -77,25 +77,14 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
         break;
 
       default:
-        return array(
-          'status' => FALSE,
-          'error_message' => $this->t('An error has occurred: Invalid command for gateway'),
-        );
+        throw new InvalidCommandException();
     }
-    $url = $this->buildRequestUrl($command, $config);
-
-    try {
-      return $this->handleResponse($this->httpRequest($url, $query, $method, $headers, $body), $command, $data);
-    }
-    catch (GuzzleException $e) {
-      // This error should not get to the user.
-      $t_args = ['@code' => $e->getCode(), '@message' => $e->getMessage()];
-      $this->logger()->error('An error occurred during the HTTP request: (@code) @message', $t_args);
-      return [
-        'status' => FALSE,
-        'error_message' => $this->t('An error occurred during the HTTP request: (@code) @message', $t_args),
-      ];
-    }
+    return [
+      'query' => $query,
+      'method' => $method,
+      'headers' => $headers,
+      'body' => $body,
+    ];
   }
 
   /**
@@ -178,7 +167,7 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
   public function buildConfigurationForm(array $form, FormStateInterface $form_state) {
     $form = parent::buildConfigurationForm($form, $form_state);
 
-    $form['test_number'] = array(
+    $form['settings']['test_number'] = array(
       '#type' => 'number',
       '#title' => t('Test Number'),
       '#description' => t('A number to confirm configuration settings. You will receive an sms if the settings are ok.'),
@@ -189,17 +178,6 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
     );
 
     return $form;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function submitConfigurationForm(array &$form, FormStateInterface $form_state) {
-    parent::submitConfigurationForm($form, $form_state);
-    // Process the gateway's submission handling only if no errors occurred.
-    if (!$form_state->getErrors()) {
-      $this->configuration['test_number'] = $form_state->getValue('test_number');
-    }
   }
 
   /**

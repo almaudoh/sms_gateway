@@ -63,16 +63,16 @@ class RouteSmsGatewayTest extends WebTestBase {
 		$this->assertResponse(200);
 		$this->assertUrl(new Url('entity.sms_gateway.edit_form', ['sms_gateway' => $edit['id']]));
 		// Assert default value of port field.
-		$this->assertFieldByName('port', 80);
+		$this->assertFieldByName('settings[port]', 80);
 
 		$settings = [
-			'ssl' => FALSE,
-			'server' => 'smsplus.routesms.com',
-			'port' => '8080',
-			'username' => 'test_user',
-			'password' => 'password',
-			'reports' => FALSE,
-			'test_number' => '2234234234',
+			'settings[ssl]' => FALSE,
+			'settings[server]' => 'smsplus.routesms.com',
+			'settings[port]' => '8080',
+			'settings[username]' => 'test_user',
+			'settings[password]' => 'password',
+			'settings[reports]' => FALSE,
+			'settings[test_number]' => '2234234234',
 		];
 		$this->drupalPostForm(NULL, $settings, 'Save');
 		$this->assertResponse(200);

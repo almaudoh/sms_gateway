@@ -2,13 +2,11 @@
 
 namespace Drupal\Tests\sms_gateway\Unit\Plugin\SmsGateway\RouteSms;
 
-use Drupal\Core\DependencyInjection\ContainerBuilder;
-use Drupal\Core\StringTranslation\TranslatableMarkup;
-use Drupal\Core\StringTranslation\TranslationInterface;
 use Drupal\sms\Message\SmsDeliveryReport;
 use Drupal\sms\Message\SmsDeliveryReportInterface;
 use Drupal\sms\Plugin\SmsGatewayPluginInterface;
 use Drupal\sms_gateway\Plugin\SmsGateway\RouteSms\MessageResponseHandler;
+use Drupal\Tests\sms_gateway\Unit\Plugin\SmsGateway\TestStringTranslationInterfaceTrait;
 use Drupal\Tests\UnitTestCase;
 use Prophecy\Argument;
 
@@ -19,18 +17,7 @@ use Prophecy\Argument;
  */
 class MessageResponseHandlerTest extends UnitTestCase {
 
-  public function setUp() {
-    // Mock \Drupal::service('string_translation')::translateString() so that
-    // StringTranslationTrait would work.
-    $string_translation = $this->prophesize(TranslationInterface::class);
-    $string_translation->translateString(Argument::type(TranslatableMarkup::class))->will(function (array $arguments) {
-      /** \Drupal\Core\StringTranslation\TranslatableMarkup[] $arguments */
-      return $arguments[0]->getUntranslatedString();
-    });
-    $container = new ContainerBuilder();
-    $container->set('string_translation', $string_translation->reveal());
-    \Drupal::setContainer($container);
-  }
+  use TestStringTranslationInterfaceTrait;
 
   /**
    * @dataProvider providerMessageResponseHandler
@@ -38,7 +25,7 @@ class MessageResponseHandlerTest extends UnitTestCase {
   public function testHandleMethod($raw, $expected_message_count, array $expected_result) {
     $handler = new MessageResponseHandler();
     /** @var \Drupal\sms\Message\SmsMessageResultInterface $result */
-    $result = $handler->handle($raw, 'test_gateway');
+    $result = $handler->handle($raw);
     $this->assertEquals($expected_message_count, count($result['reports']));
     $this->assertEquals($expected_result, $result);
   }

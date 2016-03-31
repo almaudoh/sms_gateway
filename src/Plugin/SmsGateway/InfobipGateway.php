@@ -29,11 +29,10 @@ class InfobipGateway extends DefaultGatewayPluginBase {
   /**
    * {@inheritdoc}
    */
-  protected function doCommand($command, array $data, array $config = NULL) {
+  protected function getHttpParametersForCommand($command, array $data, array $config) {
     $method = 'GET';
     $body = '';
     $query = [];
-    $config = isset($config) ? $config : $this->getConfiguration();
     // Set up common headers for the REST request.
     $headers = [
       'Content-Type' => 'application/json',
@@ -89,39 +88,21 @@ class InfobipGateway extends DefaultGatewayPluginBase {
 
       case 'credits':
       case 'test':
-      default:
         // Really nothing to do here.
         break;
+      default:
+        throw new InvalidCommandException();
     }
-    $url = $this->buildRequestUrl($command, $config);
-
-    try {
-      return $this->handleResponse($this->httpRequest($url, $query, $method, $headers, $body), $command, $data);
-    }
-    catch (GuzzleException $e) {
-      // This error should not get to the user.
-      $t_args = ['@code' => $e->getCode(), '@message' => $e->getMessage()];
-      $this->logger()->error('An error occurred during the HTTP request: (@code) @message', $t_args);
-      return [
-        'status' => FALSE,
-        'error_message' => $this->t('An error occurred during the HTTP request: (@code) @message', $t_args),
-      ];
-    }
+    return [
+      'query' => $query,
+      'method' => $method,
+      'headers' => $headers,
+      'body' => $body,
+    ];
   }
 
   /**
-   * Handles the response from the SMS gateway.
-   *
-   * @param \Psr\Http\Message\ResponseInterface $response
-   *   The HTTP response to be handled.
-   * @param string $command
-   *   The command.
-   * @param array $data
-   *   Additional data used by the command.
-   *
-   * @return array
-   *   Structured key-value array containing the processed result depending on
-   *   the command.
+   * {@inheritdoc}
    */
   protected function handleResponse(ResponseInterface $response, $command, $data) {
     // Check for HTTP errors.

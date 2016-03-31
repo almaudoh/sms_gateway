@@ -6,7 +6,7 @@ use Drupal\Core\Url;
 use Drupal\simpletest\WebTestBase;
 
 /**
- * Web tests for infobip gateway plugin.
+ * Tests the functionality provided by the DefaultGatewayPluginBase.
  *
  * @group SMS Gateways
  */
@@ -30,15 +30,14 @@ class DefaultGatewayPluginBaseTest extends WebTestBase {
     $edit_url = new Url('entity.sms_gateway.edit_form', ['sms_gateway' => $edit['id']]);
     $this->assertUrl($edit_url);
     // Assert default value of port field.
-    $this->assertFieldByName('port', 80);
+    $this->assertFieldByName('settings[port]', 80);
 
     $settings = [
-      'ssl' => FALSE,
-      'server' => 'example.com',
-      // No port specified for example.com
-      'port' => '',
-      'username' => $this->randomMachineName(),
-      'password' => $this->randomMachineName(),
+      'settings[ssl]' => FALSE,
+      'settings[server]' => 'example.com',
+      'settings[port]' => 80,
+      'settings[username]' => $this->randomMachineName(),
+      'settings[password]' => $this->randomMachineName(),
     ];
     $this->drupalPostForm(NULL, $settings, 'Save');
     $this->assertResponse(200);
@@ -48,17 +47,45 @@ class DefaultGatewayPluginBaseTest extends WebTestBase {
 
   	// Simulate an exception in the settings using the test gateway.
     $bad_settings = [
-      'ssl' => FALSE,
-      'server' => 'example.com',
-      'username' => $this->randomMachineName(),
-      'password' => $this->randomMachineName(),
-      'simulate_error' => 'An error has been encountered...',
-      'simulate_error_code' => 8430,
+      'settings[ssl]' => FALSE,
+      'settings[server]' => 'example.com',
+      'settings[username]' => $this->randomMachineName(),
+      'settings[password]' => $this->randomMachineName(),
+      'settings[simulate_error][message]' => 'An error has been encountered...',
+      'settings[simulate_error][code]' => 8430,
     ];
     $this->drupalPostForm($edit_url, $bad_settings, 'Save');
     $this->assertResponse(200);
-    $this->assertText('An error occurred during the HTTP request: (8430) An error has been encountered...');
+    $this->assertText('HTTP response exception (8430) An error has been encountered...');
     $this->assertUrl($edit_url);
+
+    // Simulate an exception with invalid url settings.
+    $worse_settings = [
+      'settings[ssl]' => FALSE,
+      // Use an invalid server name.
+      'settings[server]' => '\\',
+      'settings[port]' => '1',
+      'settings[username]' => $this->randomMachineName(),
+      'settings[password]' => $this->randomMachineName(),
+    ];
+    $this->drupalPostForm($edit_url, $worse_settings, 'Save');
+    $this->assertResponse(200);
+    $this->assertText('HTTP request exception (0) Unable to parse URI: http://:1/');
+    $this->assertUrl($edit_url);
+  }
+
+  /**
+   * @todo
+   */
+  public function testInvalidFormSubmission() {
+
+  }
+
+  /**
+   * @todo
+   */
+  public function testErrorMessages() {
+    // @todo: Tests needed for the error messages.
   }
 
 }

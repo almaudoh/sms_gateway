@@ -44,9 +44,32 @@ class InfobipGatewayTest extends WebTestBase {
 
     // Expect the request to fail because of authentication failure.
     $this->assertFalse($response->getStatus());
-    $this->assertEqual($response->getErrorMessage(), 'An error occurred during the HTTP request: (401) Client error: 401');
+    $this->assertEqual($response->getErrorMessage(), 'HTTP response exception (401) Client error: 401');
 
     // @todo More tests with valid credentials.
+    // Test on credits command
+//    $credits = $gateway->credits();
+//    $this->assertTrue($credits, t('Execute "credits" command. Credits: @credits', array('@credits' => $credits)), $group);
+//
+//    // Send text using SPLIT GET method
+//    $gateway->config(array('method' => INFOBIP_HTTP_GET_SPLIT));
+//    $response = $gateway->send('2348134496448', $this->randomMessage(), array('sender' => $this->randomSender(20)), $group);
+//    $this->assertTrue($response['status'], t('Send SMS using SPLIT GET'));
+//
+//    // Send text using NORMAL GET method
+//    $gateway->config(array('method' => INFOBIP_HTTP_GET));
+//    $response = $gateway->send('2348134496448', $this->randomMessage(), array('sender' => $this->randomSender(20)), $group);
+//    $this->assertTrue($response['status'], t('Send SMS using NORMAL GET'));
+//
+//    // Send text using XML POST method
+//    $gateway->config(array('method' => INFOBIP_HTTP_POST));
+//    $response = $gateway->send('2348134496448', $this->randomMessage(), array('sender' => $this->randomSender(20)), $group);
+//    $this->assertTrue($response['status'], t('Send SMS using XML POST'));
+//
+//    // Tests not yet implemented
+//    $response = $gateway->delivery_pull('032101822485962236');
+//    debug($response, 'DLR Response');
+//    $this->assertTrue(count($response), t('DeliveryReports received'), $group);
   }
 
   /**
@@ -64,19 +87,19 @@ class InfobipGatewayTest extends WebTestBase {
     $this->assertResponse(200);
     $this->assertUrl(new Url('entity.sms_gateway.edit_form', ['sms_gateway' => $edit['id']]));
     // Assert default value of port field.
-    $this->assertFieldByName('port', 80);
+    $this->assertFieldByName('settings[port]', 80);
 
     $settings = [
-      'ssl' => FALSE,
-      'server' => 'api.infobip.com',
-      'port' => '',
-      'username' => 'test_user',
-      'password' => 'password',
-      'reports' => FALSE,
+      'settings[ssl]' => FALSE,
+      'settings[server]' => 'api.infobip.com',
+      'settings[port]' => '',
+      'settings[username]' => 'test_user',
+      'settings[password]' => 'password',
+      'settings[reports]' => FALSE,
     ];
     $this->drupalPostForm(NULL, $settings, 'Save');
     $this->assertResponse(200);
-    $this->assertText('An error occurred during the HTTP request: (401) Client error: 401.');
+    $this->assertText('HTTP response exception (401) Client error: 401.');
   }
 
 }
