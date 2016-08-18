@@ -7,6 +7,7 @@ use Drupal\Core\Form\FormStateInterface;
 use Drupal\sms\Message\SmsMessageInterface;
 use Drupal\sms\Message\SmsMessageResult;
 use Drupal\sms\Plugin\SmsGatewayPluginBase;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\ResponseInterface;
 
@@ -29,14 +30,14 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
   /**
    * {@inheritdoc}
    */
-  public function send(SmsMessageInterface $sms, array $options) {
+  public function send(SmsMessageInterface $sms) {
     // Wrapper method for sending messages.
     // Provides basic cleanup functionality prior to passing onto gateway send
     // command. Subclasses will implement additional logic in the doSend() method
     // and also call the doCommand('send') method to dispatch messages.
 
     // Call subclass implementation to process sending.
-    return new SmsMessageResult($this->doSend($sms, $options));
+    return new SmsMessageResult($this->doSend($sms));
   }
 
   /**
@@ -95,7 +96,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    *
    * @see \Drupal\sms\Message\SmsDeliveryReportInterface
    */
-  protected function doSend(SmsMessageInterface $sms, array $options) {
+  protected function doSend(SmsMessageInterface $sms) {
     // Initialize the composite results array.
     $default_result = [
       'status' => FALSE,
@@ -120,8 +121,8 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
         $batch_result = $this->doCommand('send', [
           'recipients' => $batch,
           'message' => $sms->getMessage(),
-          'sender' => $sms->getSender(),
-          'options' => $options,
+          'sender' => $sms->getSenderNumber(),
+          'options' => $sms->getOptions(),
         ]) + $default_result;
         // Combine current batch results with cumulative results.
         $results['status'] = $results['status'] || $batch_result['status'];
@@ -190,6 +191,15 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
     try {
       $url = $this->buildRequestUrl($command, $config);
       return $this->handleResponse($this->httpRequest($url, $params['query'], $params['method'], $params['headers'], $params['body']), $command, $data);
+    }
+    catch (ConnectException $e) {
+      return [
+        'status' => FALSE,
+        'error_message' => $this->t('Could not connect to the gateway server (@code) @message', [
+          '@code' => $e->getCode(),
+          '@message' => $e->getMessage()
+        ]),
+      ];
     }
     catch (GuzzleException $e) {
       return [
@@ -403,7 +413,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
     ];
     $form['settings']['ssl'] = [
       '#type' => 'checkbox',
-      '#title' => $this->t('Use SSL Encyption'),
+      '#title' => $this->t('Use SSL Encryption'),
       '#description' => $this->t('Ensure you have SSL properly configured on your server.'),
       '#default_value' => $config['ssl'],
     ];
