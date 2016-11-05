@@ -4,50 +4,29 @@ namespace Drupal\sms_gateway\Plugin\SmsGateway\Infobip;
 
 use Drupal\Component\Serialization\Json;
 use Drupal\sms\Message\SmsDeliveryReport;
+use Drupal\sms\Message\SmsMessageResult;
 
 /**
- * Handles delivery reports for the Infobip Gateway.
+ * Handles the Infobip delivery reports and turns it into SmsMessageResult.
  */
 class DeliveryReportHandler extends InfobipResponseHandlerBase {
 
   /**
-   * Handles the response and turns it into list of delivery report objects.
-   *
-   * @param string $body
-   *   The JSON-encoded response.
-   * @param string $gateway_name
-   *   The config name of the gateway calling this handler.
-   *
-   * @return \Drupal\sms\Message\SmsDeliveryReportInterface[]
+   * {@inheritdoc}
    */
   public function handle($body) {
-    return $this->parseDeliveryReport($body);
-  }
-
-  /**
-   * Processes Infobip delivery reports into SMS delivery report objects.
-   *
-   * @param string $body
-   *   The JSON-encoded response.
-   *
-   * @return \Drupal\sms\Message\SmsDeliveryReportInterface[]
-   */
-  protected function parseDeliveryReport($body) {
     $response = Json::decode($body);
     $reports = [];
     foreach ($response['results'] as $result) {
-      $reports[] = new SmsDeliveryReport([
-        'recipient' => $result['to'],
-        'message_id' => $result['messageId'],
-        'send_time' => $result['sentAt'],
-        'delivered_time' => $result['doneAt'],
-        'status' => $this->mapStatus($result['status']),
-        'gateway_status' => $result['status']['name'],
-        'gateway_status_code' => $result['status']['id'],
-        'gateway_status_description' => $result['status']['description'],
-      ] + $this->parseError($result['error']));
+      $reports[] = (new SmsDeliveryReport())
+        ->setRecipient($result['to'])
+        ->setMessageId($result['messageId'])
+        ->setTimeQueued($result['sentAt'])
+        ->setTimeDelivered($result['doneAt'])
+        ->setStatus($this->mapStatus($result['status']))
+        ->setStatusMessage($result['status']['name']);
     }
-    return $reports;
+    return (new SmsMessageResult())->setReports($reports);
   }
 
 }

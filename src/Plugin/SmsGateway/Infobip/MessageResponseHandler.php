@@ -5,46 +5,41 @@ namespace Drupal\sms_gateway\Plugin\SmsGateway\Infobip;
 use Drupal\Component\Serialization\Json;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\sms\Message\SmsDeliveryReport;
+use Drupal\sms\Message\SmsMessageResult;
+use Drupal\sms\Message\SmsMessageResultStatus;
 
 /**
- * Normalizes send reports to the SMS Framework standard.
+ * Normalizes XML send responses to the SmsMessageResult object.
  */
 class MessageResponseHandler extends InfobipResponseHandlerBase {
 
   /**
-   * Handles the message response.
-   *
-   * @param string $body
-   *   The body of the response from the gateway.
-   * @param string $gateway_name
-   *   The name of the gateway instance that sent the message.
-   *
-   * @return array
-   *   A structured key-value array containing the processed result.
+   * {@inheritdoc}
    */
   public function handle($body) {
     $response = Json::decode($body);
     if ($response['messages']) {
-      $result = [
-        'status' => TRUE,
-        'error_message' => new TranslatableMarkup('Message successfully delivered.'),
-        'reports' => [],
-      ];
+      $result = (new SmsMessageResult())
+        ->setErrorMessage(new TranslatableMarkup('Message successfully delivered.'));
+      $reports = [];
       foreach ($response['messages'] as $message) {
-        $result['reports'][$message['to']] = new SmsDeliveryReport([
-          'recipient' => $message['to'],
-          'status' => $this->mapStatus($message['status']),
-          'message_id' => $message['messageId'],
-        ] + (isset($message['error']) ? $this->parseError($message['error']) : []));
+        $report = (new SmsDeliveryReport())
+          ->setRecipient($message['to'])
+          ->setStatus($this->mapStatus($message['status']))
+          ->setMessageId($message['messageId'])
+          ->setStatusMessage($message['status']['description']);
+        if (isset($message['error'])) {
+          $report->setStatus($this->mapError($message['error']));
+        }
+        $reports[$message['to']] = $report;
       }
+      $result->setReports($reports);
     }
     else {
-      $result = [
-        // @todo should we check the HTTP response code?
-        'status' => FALSE,
-        'error_message' => new TranslatableMarkup('Unknown SMS Gateway error'),
-        'reports' => [],
-      ];
+      // @todo should we check the HTTP response code?
+      $result = (new SmsMessageResult())
+        ->setError(SmsMessageResultStatus::ERROR)
+        ->setErrorMessage(new TranslatableMarkup('Unknown SMS Gateway error'));
     }
     return $result;
   }

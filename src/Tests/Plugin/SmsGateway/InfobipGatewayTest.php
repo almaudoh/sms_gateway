@@ -40,11 +40,11 @@ class InfobipGatewayTest extends WebTestBase {
 		// Test gateway and ensure we actually have an answer. Expecting an
     // authentication failure since the username / password don't exist.
     $sms_message = new SmsMessage($this->randomMachineName(), ['234234234234'], 'test message');
-    $response = $gateway->getPlugin()->send($sms_message, []);
+    $response = $gateway->getPlugin()->send($sms_message);
 
     // Expect the request to fail because of authentication failure.
-    $this->assertFalse($response->getStatus());
-    $this->assertEqual($response->getErrorMessage(), 'HTTP response exception (401) Client error: 401');
+    $this->assertNotNull($response->getError());
+    $this->assertEqual(substr($response->getErrorMessage(), 0, 43), 'HTTP response exception (401) Client error:');
 
     // @todo More tests with valid credentials.
     // Test on credits command
@@ -99,7 +99,7 @@ class InfobipGatewayTest extends WebTestBase {
     ];
     $this->drupalPostForm(NULL, $settings, 'Save');
     $this->assertResponse(200);
-    $this->assertText('HTTP response exception (401) Client error: 401.');
+    $this->assertText('HTTP response exception (401) Client error:');
   }
 
 }

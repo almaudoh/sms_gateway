@@ -4,6 +4,8 @@ namespace Drupal\sms_gateway\Plugin\SmsGateway;
 
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\Core\StringTranslation\TranslatableMarkup;
+use Drupal\sms\Message\SmsMessageResult;
+use Drupal\sms\Message\SmsMessageResultStatus;
 use Drupal\sms_gateway\Plugin\SmsGateway\RouteSms\DeliveryReportHandler;
 use Drupal\sms_gateway\Plugin\SmsGateway\RouteSMS\MessageResponseHandler;
 use GuzzleHttp\Exception\GuzzleException;
@@ -17,6 +19,9 @@ use Symfony\Component\HttpFoundation\Response;
  * @SmsGateway(
  *   id = "routesms",
  *   label = @Translation("RouteSMS Gateway"),
+ *   outgoing_message_max_recipients = 400,
+ *   schedule_aware = FALSE,
+ *   credit_balance_available = FALSE
  * )
  */
 class RouteSmsGateway extends DefaultGatewayPluginBase {
@@ -24,9 +29,9 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
   /**
    * {@inheritdoc}
    */
-  public function balance() {
+  public function getCreditsBalance() {
     // RouteSMS does not yet implement credit balance.
-    return t('Not available.');
+    return NULL;
   }
 
   /**
@@ -77,7 +82,7 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
         break;
 
       default:
-        throw new InvalidCommandException();
+        throw new InvalidCommandException('Invalid command ' . $command);
     }
     return [
       'query' => $query,
@@ -88,18 +93,7 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
   }
 
   /**
-   * Handles the response from the SMS gateway.
-   *
-   * @param \Psr\Http\Message\ResponseInterface $response
-   *   The HTTP response to be handled.
-   * @param string $command
-   *   The command.
-   * @param array $data
-   *   Additional data used by the command.
-   *
-   * @return array
-   *   Structured key-value array containing the processed result depending on
-   *   the command.
+   * {@inheritdoc}
    */
   protected function handleResponse(ResponseInterface $response, $command, $data) {
     // Check for HTTP errors.
@@ -108,21 +102,22 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
         'code' => $response->getStatusCode(),
         'message' => $response->getReasonPhrase(),
       ];
-      return [
-        'status' => FALSE,
-        'error_message' => $this->t('An error occurred during the HTTP request: @error',
-          ['@error' => $response->getReasonPhrase()]),
-      ];
+      return (new SmsMessageResult())
+        ->setError(SmsMessageResultStatus::ERROR)
+        ->setErrorMessage($this->t('An error occurred during the HTTP request: @error',
+          ['@error' => $response->getReasonPhrase()]));
     }
 
     // Call the message response handler to handle the message response.
-    $result = [];
     if ($body = (string) $response->getBody()) {
       $handler = new MessageResponseHandler();
-      $result = $handler->handle($body);
+      return $handler->handle($body);
     }
 
-    return $result;
+    // @todo This needs test coverage.
+    return (new SmsMessageResult())
+      ->setError(SmsMessageResultStatus::ERROR)
+      ->setErrorMessage($this->t('No content received from the gateway'));
   }
 
   /**
@@ -140,7 +135,7 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
         return '/bulksms/bulksms';
 
       default:
-        return '';
+        throw new InvalidCommandException('Invalid command ' . $command);
     }
   }
 
@@ -178,49 +173,6 @@ class RouteSmsGateway extends DefaultGatewayPluginBase {
     );
 
     return $form;
-  }
-
-  /**
-   * Converts a string to UCS-2 encoding if necessary.
-   *
-   * @param string $message
-   *   The message string to be converted.
-   *
-   * @return string|false
-   *   Returns the encoded string, or false if the convert function is not
-   *   available.
-   */
-  protected function convertToUnicode($message) {
-    $hex1 = '';
-    if (function_exists('iconv')) {
-      $latin = @iconv('UTF-8', 'ISO-8859-1', $message);
-      if (strcmp($latin, $message)) {
-        $arr = unpack('H*hex', @iconv('UTF-8', 'UCS-2BE', $message));
-        $hex1 = strtoupper($arr['hex']);
-      }
-      if ($hex1 == '') {
-        $hex2 = '';
-        $hex = '';
-        for ($i = 0; $i < strlen($message); $i++) {
-          $hex = dechex(ord($message[$i]));
-          $len = strlen($hex);
-          $add = 4 - $len;
-          if ($len < 4) {
-            for ($j = 0; $j < $add; $j++) {
-              $hex = "0" . $hex;
-            }
-          }
-          $hex2 .= $hex;
-        }
-        return $hex2;
-      }
-      else {
-        return $hex1;
-      }
-    }
-    else {
-      return FALSE;
-    }
   }
 
 }

@@ -2,7 +2,8 @@
 
 namespace Drupal\Tests\sms_gateway\Unit\Plugin\SmsGateway\Infobip;
 
-use Drupal\sms_gateway\Plugin\SmsGateway\Infobip\CreditsResponseHandler;
+use Drupal\sms\Message\SmsMessageResult;
+use Drupal\sms_gateway\Plugin\SmsGateway\Infobip\CreditBalanceResponseHandler;
 use Drupal\Tests\UnitTestCase;
 
 /**
@@ -15,25 +16,22 @@ class CreditsResponseHandlerTest extends UnitTestCase {
   /**
    * @dataProvider providerMessageResponseHandler
    */
-  public function testHandleMethod($raw, array $expected_result) {
-    $handler = new CreditsResponseHandler();
-    /** @var \Drupal\sms\Message\SmsDeliveryReportInterface[] $reports */
-    $reports = $handler->handle($raw);
-    $this->assertEquals($expected_result, $reports);
+  public function testHandleMethod($raw, $expected_result) {
+    $handler = new CreditBalanceResponseHandler();
+    $result = $handler->handle($raw);
+    $this->assertEquals($expected_result, $result);
   }
 
   public function providerMessageResponseHandler() {
     return [
       [
         CreditsResponseHandlerTestFixtures::$testDeliveryReport1,
-        [
-          'status' => TRUE,
-          'credit_balance' => 'EUR 47.79134',
-          'original' => [
-            'balance' => 47.79134,
-            'currency' => 'EUR',
-          ],
-        ],
+        (new SmsMessageResult())
+          ->setCreditsBalance(47.79134),
+//          'original' => [
+//            'balance' => 47.79134,
+//            'currency' => 'EUR',
+//          ],
       ],
     ];
   }
@@ -48,8 +46,4 @@ class CreditsResponseHandlerTestFixtures {
 }
 EOF;
 
-}
-
-if (!defined('REQUEST_TIME')) {
-  define('REQUEST_TIME', 1234567890);
 }

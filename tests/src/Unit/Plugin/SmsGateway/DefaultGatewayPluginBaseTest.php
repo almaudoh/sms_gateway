@@ -2,6 +2,7 @@
 
 namespace Drupal\Tests\sms_gateway\Unit\Plugin\SmsGateway;
 
+use Drupal\sms_gateway\Plugin\SmsGateway\InvalidCommandException;
 use Drupal\sms_gateway_test\Plugin\SmsGateway\FooLlamaGateway;
 use Drupal\Tests\UnitTestCase;
 use Prophecy\Argument;
@@ -26,9 +27,11 @@ class DefaultGatewayPluginBaseTest extends UnitTestCase {
     ];
     $gateway_plugin = new FooLlamaGateway($configuration, $definition['id'], $definition);
 
+    // Expect exception
+    $this->setExpectedException(InvalidCommandException::class, 'Invalid command invalid');
+
     // Simulate an invalid command.
-    $response = $gateway_plugin->doInvalidCommand();
-    $this->assertEquals((string) $response['error_message'], 'Invalid command (invalid) for gateway ' . $definition['id']);
+    $gateway_plugin->doInvalidCommand();
   }
 
 }

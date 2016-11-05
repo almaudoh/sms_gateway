@@ -2,13 +2,14 @@
 
 namespace Drupal\sms_gateway\Plugin\SmsGateway\Infobip;
 
-use Drupal\sms\Message\SmsDeliveryReportInterface;
+use Drupal\sms\Message\SmsMessageReportStatus;
 use Drupal\sms\Plugin\SmsGatewayPluginInterface;
+use Drupal\sms_gateway\Plugin\SmsGateway\ResponseHandlerInterface;
 
 /**
  * Base class for Infobip REST API response handling classes.
  */
-class InfobipResponseHandlerBase {
+abstract class InfobipResponseHandlerBase implements ResponseHandlerInterface {
 
   /**
    * Maps a given message status to the corresponding standard delivery status.
@@ -39,29 +40,12 @@ class InfobipResponseHandlerBase {
    *   An array containing information on the error. The error object with error
    *   code (number or text) and error description if there is one.
    */
-  protected function parseError(array $error) {
-    if (isset($error)) {
-      if (isset(self::$responseStatus[$error['id']]['map_to'])) {
-        $mapped_error = self::$responseErrors[$error['id']]['map_to'];
-      }
-      else {
-        $mapped_error = self::$errorMap[$error['groupId']];
-      }
-      return [
-        'error_code' => $mapped_error,
-        // @todo: Should we standardize the error messages?
-        'error_message' => $error['description'],
-        'gateway_error_code' => $error['id'],
-        'gateway_error_message' => $error['description'],
-      ];
+  protected function mapError(array $error) {
+    if (isset(self::$responseStatus[$error['id']]['map_to'])) {
+      return self::$responseErrors[$error['id']]['map_to'];
     }
     else {
-      return [
-        'error_code' => 0,
-        'error_message' => '',
-        'gateway_error_code' => '',
-        'gateway_error_message' => '',
-      ];
+      return self::$errorMap[$error['groupId']];
     }
   }
 
@@ -75,12 +59,12 @@ class InfobipResponseHandlerBase {
    * @var array
    */
   protected static $deliveryStatusMap = [
-    '0' => SmsDeliveryReportInterface::STATUS_SENT,
-    '1' => SmsDeliveryReportInterface::STATUS_PENDING,
-    '2' => SmsDeliveryReportInterface::STATUS_NOT_DELIVERED,
-    '3' => SmsDeliveryReportInterface::STATUS_DELIVERED,
-    '4' => SmsDeliveryReportInterface::STATUS_EXPIRED,
-    '5' => SmsDeliveryReportInterface::STATUS_REJECTED,
+    '0' => SmsMessageReportStatus::QUEUED,
+    '1' => SmsMessageReportStatus::QUEUED,
+    '2' => SmsMessageReportStatus::REJECTED,
+    '3' => SmsMessageReportStatus::DELIVERED,
+    '4' => SmsMessageReportStatus::EXPIRED,
+    '5' => SmsMessageReportStatus::REJECTED,
   ];
 
   /**
@@ -208,7 +192,6 @@ class InfobipResponseHandlerBase {
       'name' => 'REJECTED_SOURCE',
       'description' => 'Invalid Source address',
       'group_id' => '5',
-      'map_to' => SmsDeliveryReportInterface::STATUS_INVALID_SENDER,
     ],
     '12' => [
       'name' => 'REJECTED_NOT_ENOUGH_CREDITS',
@@ -279,13 +262,13 @@ class InfobipResponseHandlerBase {
       'name' => 'MISSING_TO',
       'description' => 'Missing destination',
       'group_id' => '5',
-      'map_to' => SmsDeliveryReportInterface::STATUS_INVALID_RECIPIENT,
+      'map_to' => SmsMessageReportStatus::INVALID_RECIPIENT,
     ],
     '52' => [
       'name' => 'REJECTED_DESTINATION',
       'description' => 'Invalid destination address',
       'group_id' => '5',
-      'map_to' => SmsDeliveryReportInterface::STATUS_INVALID_RECIPIENT,
+      'map_to' => SmsMessageReportStatus::INVALID_RECIPIENT,
     ],
   ];
 

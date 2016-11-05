@@ -59,7 +59,7 @@ class DefaultGatewayPluginBaseTest extends WebTestBase {
     $this->assertText('HTTP response exception (8430) An error has been encountered...');
     $this->assertUrl($edit_url);
 
-    // Simulate an exception with invalid url settings.
+    // Simulate a validation error with invalid server provided.
     $worse_settings = [
       'settings[ssl]' => FALSE,
       // Use an invalid server name.
@@ -70,7 +70,7 @@ class DefaultGatewayPluginBaseTest extends WebTestBase {
     ];
     $this->drupalPostForm($edit_url, $worse_settings, 'Save');
     $this->assertResponse(200);
-    $this->assertText('HTTP request exception (0) Unable to parse URI: http://:1/');
+    $this->assertText('Gateway API server was not provided');
     $this->assertUrl($edit_url);
   }
 

@@ -6,6 +6,7 @@ use Drupal\Component\Utility\Random;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\sms\Message\SmsMessageInterface;
 use Drupal\sms\Message\SmsMessageResult;
+use Drupal\sms\Message\SmsMessageResultStatus;
 use Drupal\sms\Plugin\SmsGatewayPluginBase;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\GuzzleException;
@@ -31,110 +32,37 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    * {@inheritdoc}
    */
   public function send(SmsMessageInterface $sms) {
-    // Wrapper method for sending messages.
-    // Provides basic cleanup functionality prior to passing onto gateway send
-    // command. Subclasses will implement additional logic in the doSend() method
-    // and also call the doCommand('send') method to dispatch messages.
-
-    // Call subclass implementation to process sending.
-    return new SmsMessageResult($this->doSend($sms));
+    return $this->doCommand('send', [
+      'recipients' => $sms->getRecipients(),
+      'message' => $sms->getMessage(),
+      'sender' => $sms->getSenderNumber(),
+      'options' => $sms->getOptions(),
+    ]);
   }
 
   /**
    * {@inheritdoc}
    */
-  public function balance() {
-    $result = $this->doCommand('credits', []);
-    if (!$result['status']) {
-      // Request failed for some reason, so return helpful information.
-      $result['credit_balance'] = 'Not currently available';
+  public function getCreditsBalance() {
+    $result = $this->doCommand('balance', []);
+    if ($result->getError()) {
+      return NULL;
     }
-    return isset($result['credit_balance']) ? $result['credit_balance'] : 0;
+    return $result->getCreditsBalance();
   }
 
   /**
    * {@inheritdoc}
    */
   public function getDeliveryReports(array $message_ids = NULL) {
-    return $this->doCommand('report', ['message_ids' => $message_ids]);
+    return $this->doCommand('report', ['message_ids' => $message_ids])->getReports();
   }
 
   /**
    * {@inheritdoc}
    */
   public function test(array $config = NULL) {
-    $result = $this->doCommand('test', [], $config);
-    return $result;
-  }
-
-  /**
-   * Handles the low-level connection for sending messages.
-   *
-   * This method implicitly handles the splitting of messages into smaller
-   * batches to avoid exceeding HTTP-GET and HTTP-POST data size limits which
-   * may cause timeouts, truncated messages, and other sorts of weird behavior
-   * depending on the web server.
-   *
-   * Notes: 'status' of TRUE means successful communication with the SMS server
-   * and success in message request. Failure of individual messages will be
-   * captured in the message report status for that recipient's number.
-   *
-   * @param \Drupal\sms\Message\SmsMessageInterface $sms
-   *   The SMS message to be sent.
-   * @param array $options
-   *   Options to be applied while processing this SMS.
-   *
-   * @return array
-   *   The combined message result array. This array is converted into an 
-   *   SmsMessageResult object and must have the following keys:
-   *     - status: true or false - whether the message sending was successful.
-   *     - error_message: the error message to display if status above is false.
-   *     - credit_used: the amount of SMS credits used in this transaction.
-   *     - credit_balance: the amount of SMS credits left.
-   *     - reports: an array of DeliveryReportInterface objects keyed by the
-   *       phonenumber.
-   *
-   * @see \Drupal\sms\Message\SmsDeliveryReportInterface
-   */
-  protected function doSend(SmsMessageInterface $sms) {
-    // Initialize the composite results array.
-    $default_result = [
-      'status' => FALSE,
-      'error_message' => '',
-      'credit_used' => 0,
-      'credit_balance' => 0,
-      'reports' => [],
-    ];
-    $results = $default_result;
-    // Batch the recipients according to the limits of the SMS gateway.
-    $recipients = $sms->getRecipients();
-    $max_size = $this->maxRecipientCount();
-    if (!isset($max_size)) {
-      // If not set, allow all messages through, use very high limit.
-      $max_size = 1000000;
-    }
-    // Send the message in batches and accumulate the results.
-    while (count($recipients) > 0) {
-      $batch = array_slice($recipients, 0, $max_size);
-      $recipients = array_slice($recipients, $max_size);
-      if (!empty($batch)) {
-        $batch_result = $this->doCommand('send', [
-          'recipients' => $batch,
-          'message' => $sms->getMessage(),
-          'sender' => $sms->getSenderNumber(),
-          'options' => $sms->getOptions(),
-        ]) + $default_result;
-        // Combine current batch results with cumulative results.
-        $results['status'] = $results['status'] || $batch_result['status'];
-        $results['error_message'] .= "\n" . $batch_result['error_message'];
-        $results['credit_used'] += $batch_result['credit_used'];
-        $results['credit_balance'] = $batch_result['credit_balance'];
-        $results['reports'] += (array)$batch_result['reports'];
-      }
-    }
-    // Remove extra new-lines from the message.
-    $results['error_message'] = trim($results['error_message']);
-    return $results;
+    return $this->doCommand('test', [], $config);
   }
 
   /**
@@ -143,9 +71,9 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    * @param string $command
    *   The command to be executed. The implementation determines exact commands,
    *   but it is normally either of:
-   *   - send: to send and SMS message
+   *   - send: to send an SMS message
    *   - test: to test the gateway connections
-   *   - credits: to get the current credits balance
+   *   - balance: to get the current credits balance
    *   - report: to pull delivery reports
    * @param array $data
    *   An array containing the data needed to execute the command. Information
@@ -160,64 +88,46 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    *   provided, the stored configuration will be used. This option is for cases
    *   where a particular configuration is to be tested.
    *
-   * @return array|null
-   *   A structured array describing the results of the SMS command.
-   *
-   * @see \Drupal\sms\Message\SmsMessageResultInterface for the structure of the
-   *   return value.
+   * @return \Drupal\sms\Message\SmsMessageResultInterface|null
+   *   An SMS message result object.
    */
   protected function doCommand($command, array $data, array $config = NULL) {
     // Get params needed to make the HTTP request from the sub-class.
-    try {
-      $config = isset($config) ? $config : $this->getConfiguration();
-      $params = $this->getHttpParametersForCommand($command, $data, $config) + [
-          'query' => [],
-          'method' => 'GET',
-          'headers' => [],
-          'body' => '',
-        ];
-    }
-    catch (InvalidCommandException $e) {
-      return array(
-        'status' => FALSE,
-        'error_message' => $this->t('Invalid command (@command) for gateway @gateway', [
-          '@command' => $command,
-          '@gateway' => $this->getPluginId(),
-        ]),
-      );
-    }
+    $config = isset($config) ? $config : $this->getConfiguration();
+    $params = $this->getHttpParametersForCommand($command, $data, $config)
+      + [
+        'query' => [],
+        'method' => 'GET',
+        'headers' => [],
+        'body' => '',
+      ];
 
-    // Catch Guzzle Exceptions and show the user a useful message.
-    try {
-      $url = $this->buildRequestUrl($command, $config);
-      return $this->handleResponse($this->httpRequest($url, $params['query'], $params['method'], $params['headers'], $params['body']), $command, $data);
+    if ($url = $this->buildRequestUrl($command, $config)) {
+      // Catch Guzzle Exceptions and show the user a useful message.
+      try {
+        return $this->handleResponse($this->httpRequest($url, $params['query'], $params['method'], $params['headers'], $params['body']), $command, $data);
+      }
+      catch (ConnectException $e) {
+        return (new SmsMessageResult())
+          ->setError(SmsMessageResultStatus::ERROR)
+          ->setErrorMessage($this->t('Could not connect to the gateway server (@code) @message', [
+            '@code' => $e->getCode(),
+            '@message' => $e->getMessage()
+          ]));
+      }
+      catch (GuzzleException $e) {
+        return (new SmsMessageResult())
+          ->setError(SmsMessageResultStatus::ERROR)
+          ->setErrorMessage($this->t('HTTP response exception (@code) @message', [
+            '@code' => $e->getCode(),
+            '@message' => $e->getMessage()
+          ]));
+      }
     }
-    catch (ConnectException $e) {
-      return [
-        'status' => FALSE,
-        'error_message' => $this->t('Could not connect to the gateway server (@code) @message', [
-          '@code' => $e->getCode(),
-          '@message' => $e->getMessage()
-        ]),
-      ];
-    }
-    catch (GuzzleException $e) {
-      return [
-        'status' => FALSE,
-        'error_message' => $this->t('HTTP response exception (@code) @message', [
-          '@code' => $e->getCode(),
-          '@message' => $e->getMessage()
-        ]),
-      ];
-    }
-    catch (\Exception $e) {
-      return [
-        'status' => FALSE,
-        'error_message' => $this->t('HTTP request exception (@code) @message', [
-          '@code' => $e->getCode(),
-          '@message' => $e->getMessage()
-        ]),
-      ];
+    else {
+      return (new SmsMessageResult())
+        ->setError(SmsMessageResultStatus::ERROR)
+        ->setErrorMessage($this->t('Gateway API server was not provided'));
     }
   }
 
@@ -253,7 +163,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
   abstract protected function getHttpParametersForCommand($command, array $data, array $config);
 
   /**
-   * Handles the response from the SMS gateway and returns a structured format.
+   * Handles the response from the SMS gateway and returns an SmsMessageResult.
    *
    * @param \Psr\Http\Message\ResponseInterface $response
    *   The HTTP response to be handled.
@@ -262,9 +172,8 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    * @param array $data
    *   Additional data used by the command.
    *
-   * @return array
-   *   Structured key-value array containing the processed result depending on
-   *   the command.
+   * @return \Drupal\sms\Message\SmsMessageResultInterface
+   *   An SMS message result object.
    */
   abstract protected function handleResponse(ResponseInterface $response, $command, $data);
 
@@ -276,19 +185,21 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    * @param array $config
    *   An array containing the configuration to be used for building the URL.
    *
-   * @return string
+   * @return string|null
    *   The fully qualified URI for executing the specified command on the SMS
    *   server.
    */
   protected function buildRequestUrl($command, array $config) {
-    if ($config['ssl']) {
-      $scheme = 'https';
+    // If no server is set, we can't build a valid url.
+    $server = trim($config['server'], '/\\ ');
+    if (empty($server)) {
+      return NULL;
     }
-    else {
-      $scheme = 'http';
+    $scheme = empty($config['ssl']) ? 'http' : 'https';
+    if (!empty($config['port'])) {
+      $server .= ':' . $config['port'];
     }
-    $server = trim($config['server'], '/\\') . (!empty($config['port']) ? ':' . $config['port'] : '');
-    return $scheme . '://' . $server .  $this->getResourceForCommand($command);
+    return $scheme . '://' . $server . $this->getResourceForCommand($command);
   }
 
   /**
@@ -360,15 +271,6 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
   }
 
   /**
-   * Gets the max. allowed number of recipients in a request for this gateway.
-   *
-   * @return int
-   */
-  protected function maxRecipientCount() {
-    return 400;
-  }
-
-  /**
    * {@inheritdoc}
    */
   public function defaultConfiguration() {
@@ -409,7 +311,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
     $form['settings']['balance'] = [
       '#theme_wrappers' => ['form_element'],
       '#title' => $this->t('Current balance'),
-      '#markup' => $this->balance(),
+      '#markup' => $this->getCreditsBalance(),
     ];
     $form['settings']['ssl'] = [
       '#type' => 'checkbox',
@@ -434,7 +336,6 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
       '#maxlength' => 255,
       '#default_value' => $config['port'],
       '#min' => 1,
-      '#required' => TRUE,
     ];
     $form['settings']['username'] = [
       '#type' => 'textfield',
@@ -468,9 +369,9 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    */
   public function validateConfigurationForm(array &$form, FormStateInterface $form_state) {
     $response = $this->test($form_state->getValue('settings'));
-    if (!$response['status']) {
+    if ($response->getError() !== NULL) {
       $t_args = [
-        '@error' => $response['error_message'],
+        '@error' => $response->getErrorMessage(),
         '@gateway' => $this->pluginDefinition['label'],
       ];
       if ($form_state->getValue('no_validate')) {

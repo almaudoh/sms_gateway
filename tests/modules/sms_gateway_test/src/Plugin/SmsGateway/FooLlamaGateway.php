@@ -4,6 +4,8 @@ namespace Drupal\sms_gateway_test\Plugin\SmsGateway;
 
 use Drupal\Component\Render\FormattableMarkup;
 use Drupal\Core\Form\FormStateInterface;
+use Drupal\sms\Message\SmsMessageResult;
+use Drupal\sms\Message\SmsMessageResultStatus;
 use Drupal\sms_gateway\Plugin\SmsGateway\DefaultGatewayPluginBase;
 use Drupal\sms_gateway\Plugin\SmsGateway\InvalidCommandException;
 use GuzzleHttp\Exception\GuzzleException;
@@ -25,8 +27,8 @@ class FooLlamaGateway extends DefaultGatewayPluginBase {
   /**
    * {@inheritdoc}
    */
-  public function balance() {
-    return 'Foo balance';
+  public function getCreditsBalance() {
+    return 10.0;
   }
 
   /**
@@ -41,7 +43,7 @@ class FooLlamaGateway extends DefaultGatewayPluginBase {
    */
   protected function getHttpParametersForCommand($command, array $data, array $config) {
     if ($command === 'invalid') {
-      throw new InvalidCommandException();
+      throw new InvalidCommandException('Invalid command ' . $command);
     }
     // Setup for simulation of gateway connection error.
     $this->simulate = $config['simulate_error'];
@@ -72,27 +74,23 @@ class FooLlamaGateway extends DefaultGatewayPluginBase {
         'code' => $response->getStatusCode(),
         'message' => $response->getReasonPhrase(),
       ];
-      return [
-        'status' => FALSE,
-        'error_message' => new FormattableMarkup('HTTP response error (@code) @message',
-          ['@code' => $response->getStatusCode(), '@message' => $response->getReasonPhrase()]),
-      ];
+      return (new SmsMessageResult())
+        ->setError(SmsMessageResultStatus::ERROR)
+        ->setErrorMessage(new FormattableMarkup('HTTP response error (@code) @message',
+          ['@code' => $response->getStatusCode(), '@message' => $response->getReasonPhrase()]));
     }
     else {
       // Verify the response from example.com.
       if ($this->verifyResponse($response->getBody())) {
         // The response was correctly verified.
-        return [
-          'status' => TRUE,
-          'error_message' => 'The expected response "Example Domain This domain is established to be used for illustrative examples in documents." was found'
-        ];
+        return (new SmsMessageResult())
+          ->setErrorMessage('The expected response "Example Domain This domain is established to be used for illustrative examples in documents." was found');
       }
       else {
         // Return false if the response did not verify.
-        return [
-          'status' => FALSE,
-          'error_message' => 'The expected response "Example Domain This domain is established to be used for illustrative examples in documents." was not found'
-        ];
+        return (new SmsMessageResult())
+          ->setError(SmsMessageResultStatus::ERROR)
+          ->setErrorMessage('The expected response "Example Domain This domain is established to be used for illustrative examples in documents." was not found');
       }
     }
   }

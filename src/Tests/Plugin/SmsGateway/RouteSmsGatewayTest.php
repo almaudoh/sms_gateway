@@ -38,11 +38,11 @@ class RouteSmsGatewayTest extends WebTestBase {
 		]);
 
 		// Test gateway and ensure we actually have an answer.
-    $sms_message = new SmsMessage($this->randomMachineName(), ['234234234234'], 'test message');
-		$response = $gateway->getPlugin()->send($sms_message, []);
+    $sms_message = new SmsMessage($this->randomMachineName(), ['234234234234', '1234567890'], 'test message');
+		$response = $gateway->getPlugin()->send($sms_message);
 
 		// Expect the request to fail because of authentication failure.
-    $this->assertFalse($response->getStatus());
+    $this->assertNotNull($response->getError());
     $this->assertEqual($response->getErrorMessage(), 'Invalid value in username or password field');
 
     // @todo More tests with valid credentials.

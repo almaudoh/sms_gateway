@@ -2,7 +2,6 @@
 
 namespace Drupal\sms_gateway\Plugin\SmsGateway;
 
-
 /**
  * Determines that an SmsGateway plugin has a testing functionality.
  */
@@ -14,10 +13,8 @@ interface TestableGatewayPluginInterface {
    * @param array $config
    *    Optional configuration parameters to test gateway with.
    *
-   * @return array
-   *   A structured array containing information on the test:
-   *   - status: true if the test was successful, false otherwise
-   *   - error_message: a message describing the error if status is false
+   * @return \Drupal\sms\Message\SmsMessageResultInterface
+   *   An SMS message result object.
    */
   public function test(array $config = NULL);
 

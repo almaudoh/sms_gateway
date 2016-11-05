@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\sms\Plugin\SmsGateway;
+namespace Drupal\sms_gateway\Plugin\SmsGateway;
 
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\sms\Message\SmsMessageInterface;
@@ -53,8 +53,7 @@ class DebugGateway extends SmsGatewayPluginBase {
   /**
    * {@inheritdoc}
    */
-//  public function send($command, array $data, array $options = NULL) {
-  public function send(SmsMessageInterface $sms, array $options) {
+  public function send(SmsMessageInterface $sms) {
     // Log the messages and generate message ID's for each sender.
     $reports = [];
     $msg_ids = '';

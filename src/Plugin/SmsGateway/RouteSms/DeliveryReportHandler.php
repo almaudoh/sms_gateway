@@ -2,49 +2,55 @@
 
 namespace Drupal\sms_gateway\Plugin\SmsGateway\RouteSms;
 
+use Drupal\Component\Serialization\Json;
 use Drupal\sms\Message\SmsDeliveryReport;
-use Drupal\sms\Message\SmsDeliveryReportInterface;
+use Drupal\sms\Message\SmsMessageReportStatus;
+use Drupal\sms\Message\SmsMessageResult;
+use Drupal\sms_gateway\Plugin\SmsGateway\ResponseHandlerInterface;
 
 /**
  * Handles delivery reports for the RouteSMS Gateway.
  */
-class DeliveryReportHandler {
+class DeliveryReportHandler implements ResponseHandlerInterface {
+
+  /**
+   * {@inheritdoc}
+   */
+  public function handle($post) {
+    return $this->parseDeliveryReport(Json::decode($post));
+  }
 
   /**
    * Processes RouteSMS delivery reports into SMS delivery report objects.
    *
    * @param array $post
    *   An array containing delivery information on the message.
-   * @param string $gateway_name
-   *   The gateway config entity name.
    *
    * @return \Drupal\sms\Message\SmsDeliveryReportInterface[]
    */
-  public function parseDeliveryReport($post) {
-    return new SmsDeliveryReport([
-      'recipient' => $_POST['sMobileNo'],
-      'message_id' => trim($post['sMessageId']),
-      'time_sent' => date_create_from_format("Y-m-d H:i:s", $post['dtSubmit'], timezone_open('UTC'))->getTimestamp(),
-      'time_delivered' => date_create_from_format("Y-m-d H:i:s", $post['dtDone'], timezone_open('UTC'))->getTimestamp(),
-      'status' => self::$statusMap[$post['sStatus']],
-      'gateway_status' => $post['sStatus'],
-      'gateway_status_code' => $post['sStatus'],
-      'gateway_status_description' => $post['sStatus'],
-    ]);
+  public function parseDeliveryReport(array $post) {
+    $reports[] = (new SmsDeliveryReport())
+      ->setRecipient($post['sMobileNo'])
+      ->setMessageId(trim($post['sMessageId']))
+      ->setTimeQueued(date_create_from_format("Y-m-d H:i:s", $post['dtSubmit'], timezone_open('UTC'))->getTimestamp())
+      ->setTimeDelivered(date_create_from_format("Y-m-d H:i:s", $post['dtDone'], timezone_open('UTC'))->getTimestamp())
+      ->setStatus(self::$statusMap[$post['sStatus']])
+      ->setStatusMessage($post['sStatus']);
+    return (new SmsMessageResult())->setReports($reports);
   }
 
   // 'UNKNOWN', 'ACKED', 'ENROUTE', 'DELIVRD', 'EXPIRED', 'DELETED',
   // 'UNDELIV', 'ACCEPTED', 'REJECTD'.
   protected static $statusMap = [
-    'DELIVRD' => SmsDeliveryReportInterface::STATUS_DELIVERED,
-    'UNDELIV' => SmsDeliveryReportInterface::STATUS_NOT_DELIVERED,
-    'REJECTD' => SmsDeliveryReportInterface::STATUS_REJECTED,
-    'EXPIRED' => SmsDeliveryReportInterface::STATUS_EXPIRED,
-    'UNKNOWN' => SmsDeliveryReportInterface::STATUS_UNKNOWN,
-    'ACKED'   => SmsDeliveryReportInterface::STATUS_QUEUED,
-    'ENROUTE' => SmsDeliveryReportInterface::STATUS_SENT,
-    'DELETED' => SmsDeliveryReportInterface::STATUS_NOT_DELIVERED,
-    'ACCEPTED' => SmsDeliveryReportInterface::STATUS_QUEUED,
+    'DELIVRD' => SmsMessageReportStatus::DELIVERED,
+    'UNDELIV' => SmsMessageReportStatus::REJECTED,
+    'REJECTD' => SmsMessageReportStatus::REJECTED,
+    'EXPIRED' => SmsMessageReportStatus::EXPIRED,
+    'UNKNOWN' => SmsMessageReportStatus::QUEUED,
+    'ACKED'   => SmsMessageReportStatus::QUEUED,
+    'ENROUTE' => SmsMessageReportStatus::QUEUED,
+    'DELETED' => SmsMessageReportStatus::EXPIRED,
+    'ACCEPTED' => SmsMessageReportStatus::QUEUED,
   ];
 
 }

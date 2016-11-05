@@ -4,31 +4,21 @@ namespace Drupal\sms_gateway\Plugin\SmsGateway\RouteSms;
 
 use Drupal\Core\StringTranslation\TranslatableMarkup;
 use Drupal\sms\Message\SmsDeliveryReport;
-use Drupal\sms\Message\SmsDeliveryReportInterface;
-use Drupal\sms\Plugin\SmsGatewayPluginInterface;
+use Drupal\sms\Message\SmsMessageReportStatus;
+use Drupal\sms\Message\SmsMessageResult;
+use Drupal\sms\Message\SmsMessageResultStatus;
+use Drupal\sms_gateway\Plugin\SmsGateway\ResponseHandlerInterface;
 
 /**
  * Normalizes responses and reports from RouteSMS gateway.
  */
-class MessageResponseHandler {
+class MessageResponseHandler implements ResponseHandlerInterface {
 
   /**
-   * Handles the message response.
-   *
-   * @param string $body
-   *   The body of the response from the gateway.
-   * @param string $gateway_name
-   *   The name of the gateway instance that sent the message.
-   *
-   * @return array
-   *   A structured key-value array containing the processed result.
+   * {@inheritdoc}
    */
   public function handle($body) {
-    $result = [
-      'status' => FALSE,
-      'error_message' => new TranslatableMarkup('There was a problem with the request'),
-      'reports' => [],
-    ];
+    $result = new SmsMessageResult();
     if ($body) {
       // Sample response formats.
       // 1701|2348055494143|bc5f7425-c98c-445b-a1f7-4fc5e2acef7e,
@@ -36,33 +26,33 @@ class MessageResponseHandler {
       // 1701|2349876543|20cef313-1660-4b92-baa5-1b7ba45256a5
       // 1701|2348055494143|3023779f-1722-4b7b-a3c8-d81f9e4bfc32,1706|23405
       // 1704|2348055494143,1704|23405,1704|234509
-      // 1707|2348055494143,1706|23405,1707|234509
+      // 1701|2348055494143,1706|23405,1706|234509
+      // 1706|23405,1707|2348055494143
       // Check for RouteSMS errors.
-      $response = explode(',', $body);
+      $results = explode(',', $body);
       // Assume 4-digit codes.
-      $first_code = substr($response[0], 0, 4);
-      if (count($response) < 2 && ($error = $this->checkError($first_code)) !== FALSE) {
-        $result['error_message'] = $error['description'];
+      $first_code = substr($results[0], 0, 4);
+      if (($error = $this->messageError($first_code)) !== FALSE) {
+        $result
+          ->setError($error['code'])
+          ->setErrorMessage($error['description']);
       }
       else {
         // Message Submitted Successfully, in this case response format is:
         // 1701|<CELL_NO>|{<MESSAGE ID>},<ERROR CODE>|<CELL_NO>|{<MESSAGE ID>},...
-        $result['status'] = TRUE;
-        $result['error_message'] = new TranslatableMarkup('Message submitted successfully');
-        foreach ($response as $data) {
+        $reports = [];
+        foreach ($results as $data) {
           $info = explode('|', $data);
-          $error = $this->checkError($info[0]);
-          $result['reports'][$info[1]] = new SmsDeliveryReport([
-            'recipient' => $info[1],
-            'status' => $error ? SmsDeliveryReportInterface::STATUS_REJECTED : SmsDeliveryReportInterface::STATUS_SENT,
-            'message_id' => isset($info[2]) ? $info[2] : '',
-            'error_code' => $error ? static::$errorMap[$info[0]] : 0,
-            // @todo: Should we standardize the error messages?
-            'error_message' => $error ? $error['description'] : '',
-            'gateway_error_code' => $error ? $error['code'] : '',
-            'gateway_error_message' => $error ? $error['description'] :'',
-          ]);
+          $error = $this->reportError($info[0]);
+          $reports[$info[1]] = (new SmsDeliveryReport())
+            ->setRecipient($info[1])
+            ->setStatus($error ? $error['code'] : SmsMessageReportStatus::QUEUED)
+            ->setMessageId(isset($info[2]) ? $info[2] : '')
+            ->setStatusMessage($error ? $error['description'] : '');
         }
+        $result
+          ->setErrorMessage(new TranslatableMarkup('Message submitted successfully'))
+          ->setReports($reports);
       }
     }
     return $result;
@@ -78,10 +68,17 @@ class MessageResponseHandler {
    *   Returns FALSE if there is no error, otherwise it returns an array with the
    *   error code (number or text) and description if there is an error.
    */
-  protected function checkError($code) {
-    $error_map = self::getErrorCodes();
-    return array_key_exists($code, $error_map)
-      ? ['code' => $code, 'description' => $error_map[$code]]
+  protected function messageError($code) {
+    $error_descriptions = self::getMessageErrorCodes();
+    return array_key_exists($code, $error_descriptions)
+      ? ['code' => self::$messageErrorMap[$code], 'description' => $error_descriptions[$code]]
+      : FALSE;
+  }
+
+  protected function reportError($code) {
+    $error_descriptions = self::getReportErrorCodes();
+    return array_key_exists($code, $error_descriptions)
+      ? ['code' => self::$reportErrorMap[$code], 'description' => $error_descriptions[$code]]
       : FALSE;
   }
 
@@ -91,18 +88,16 @@ class MessageResponseHandler {
    * @return array
    *   An array of the possible error codes and corresponding messages.
    */
-  protected static function getErrorCodes() {
+  protected static function getMessageErrorCodes() {
     return [
       '1702' => new TranslatableMarkup('Invalid URL Error, This means that one of the parameters was not provided or left blank'),
       '1703' => new TranslatableMarkup('Invalid value in username or password field'),
       '1704' => new TranslatableMarkup('Invalid value in "type" field'),
       '1705' => new TranslatableMarkup('Invalid Message'),
-      '1706' => new TranslatableMarkup('Invalid Destination'),
       '1707' => new TranslatableMarkup('Invalid Source (Sender)'),
       '1708' => new TranslatableMarkup('Invalid value for "dlr" field'),
       '1709' => new TranslatableMarkup('User validation failed'),
       '1710' => new TranslatableMarkup('Internal Error'),
-      '1025' => new TranslatableMarkup('Insufficient Credit'),
     ];
   }
 
@@ -111,17 +106,39 @@ class MessageResponseHandler {
    *
    * @var array
    */
-  protected static $errorMap = [
-    '1702' => SmsGatewayPluginInterface::STATUS_ERR_INVALID_CALL,
-    '1703' => SmsGatewayPluginInterface::STATUS_ERR_AUTH,
-    '1704' => SmsGatewayPluginInterface::STATUS_ERR_OTHER,
-    '1705' => SmsGatewayPluginInterface::STATUS_ERR_MSG_OTHER,
-    '1706' => SmsGatewayPluginInterface::STATUS_ERR_DEST_NUMBER,
-    '1707' => SmsGatewayPluginInterface::STATUS_ERR_SRC_NUMBER,
-    '1708' => SmsGatewayPluginInterface::STATUS_ERR_OTHER,
-    '1709' => SmsGatewayPluginInterface::STATUS_ERR_AUTH,
-    '1710' => SmsGatewayPluginInterface::STATUS_UNKNOWN,
-    '1025' => SmsGatewayPluginInterface::STATUS_ERR_CREDIT,
+  protected static $messageErrorMap = [
+    '1702' => SmsMessageResultStatus::PARAMETERS,
+    '1703' => SmsMessageResultStatus::PARAMETERS,
+    '1704' => SmsMessageResultStatus::PARAMETERS,
+    '1705' => SmsMessageReportStatus::CONTENT_INVALID,
+    '1707' => SmsMessageResultStatus::INVALID_SENDER,
+    '1708' => SmsMessageResultStatus::PARAMETERS,
+    '1709' => SmsMessageResultStatus::AUTHENTICATION,
+    '1710' => SmsMessageResultStatus::ERROR,
+  ];
+
+  /**
+   * Returns possible delivery report error codes and messages from the gateway.
+   *
+   * @return array
+   *   An array of the possible error codes and corresponding messages for
+   *  individual delivery reports.
+   */
+  protected static function getReportErrorCodes() {
+    return [
+      '1706' => new TranslatableMarkup('Invalid Destination'),
+      '1025' => new TranslatableMarkup('Insufficient Credit'),
+    ];
+  }
+
+  /**
+   * Mapping of RouteSMS's delivery report error codes to SMS Framework's codes.
+   *
+   * @var array
+   */
+  protected static $reportErrorMap = [
+    '1706' => SmsMessageReportStatus::INVALID_RECIPIENT,
+    '1025' => SmsMessageResultStatus::NO_CREDIT,
   ];
 
 }

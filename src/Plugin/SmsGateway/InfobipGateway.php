@@ -3,10 +3,11 @@
 namespace Drupal\sms_gateway\Plugin\SmsGateway;
 
 use Drupal\Component\Serialization\Json;
-use Drupal\sms_gateway\Plugin\SmsGateway\Infobip\CreditsResponseHandler;
+use Drupal\sms\Message\SmsMessageResult;
+use Drupal\sms\Message\SmsMessageResultStatus;
+use Drupal\sms_gateway\Plugin\SmsGateway\Infobip\CreditBalanceResponseHandler;
 use Drupal\sms_gateway\Plugin\SmsGateway\Infobip\DeliveryReportHandler;
 use Drupal\sms_gateway\Plugin\SmsGateway\Infobip\MessageResponseHandler;
-use GuzzleHttp\Exception\GuzzleException;
 use Psr\Http\Message\ResponseInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -17,6 +18,9 @@ use Symfony\Component\HttpFoundation\Response;
  * @SmsGateway(
  *   id = "infobip",
  *   label = @Translation("Infobip Gateway"),
+ *   outgoing_message_max_recipients = 400,
+ *   schedule_aware = FALSE,
+ *   credit_balance_available = TRUE
  * )
  */
 class InfobipGateway extends DefaultGatewayPluginBase {
@@ -86,12 +90,12 @@ class InfobipGateway extends DefaultGatewayPluginBase {
         }
         break;
 
-      case 'credits':
+      case 'balance':
       case 'test':
         // Really nothing to do here.
         break;
       default:
-        throw new InvalidCommandException();
+        throw new InvalidCommandException('Invalid command ' . $command);
     }
     return [
       'query' => $query,
@@ -111,16 +115,15 @@ class InfobipGateway extends DefaultGatewayPluginBase {
         'code' => $response->getStatusCode(),
         'message' => $response->getReasonPhrase(),
       ];
-      return [
-        'status' => FALSE,
-        'error_message' => $this->t('An error occurred during the HTTP request: (@code) @message',
-          ['@code' => $response->getStatusCode(), '@message' => $response->getReasonPhrase()]),
-      ];
+      return (new SmsMessageResult())
+        ->setError(SmsMessageResultStatus::ERROR)
+        ->setErrorMessage($this->t('An error occurred during the HTTP request: (@code) @message',
+          ['@code' => $response->getStatusCode(), '@message' => $response->getReasonPhrase()]));
     }
     else {
       if ($command == 'test') {
         // No need for further processing if it was just a gateway test.
-        return ['status' => TRUE];
+        return new SmsMessageResult();
       }
     }
 
@@ -136,7 +139,7 @@ class InfobipGateway extends DefaultGatewayPluginBase {
           break;
 
         case self::ENDPOINT_CREDIT_BALANCE:
-          $handler = new CreditsResponseHandler();
+          $handler = new CreditBalanceResponseHandler();
           $result = $handler->handle($body);
           break;
 
@@ -158,10 +161,11 @@ class InfobipGateway extends DefaultGatewayPluginBase {
         return self::ENDPOINT_SEND_ADVANCED;
       case 'report':
         return self::ENDPOINT_DELIVERY_REPORT;
-      case 'credits':
+      case 'balance':
       case 'test':
-      default:
         return self::ENDPOINT_CREDIT_BALANCE;
+      default:
+        throw new InvalidCommandException('Invalid command ' . $command);
     }
   }
 

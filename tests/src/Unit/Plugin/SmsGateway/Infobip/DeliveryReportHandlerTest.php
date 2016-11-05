@@ -4,6 +4,7 @@ namespace Drupal\Tests\sms_gateway\Unit\Plugin\SmsGateway\Infobip;
 
 use Drupal\sms\Message\SmsDeliveryReport;
 use Drupal\sms\Message\SmsDeliveryReportInterface;
+use Drupal\sms\Message\SmsMessageReportStatus;
 use Drupal\sms\Plugin\SmsGatewayPluginInterface;
 use Drupal\sms_gateway\Plugin\SmsGateway\Infobip\DeliveryReportHandler;
 use Drupal\Tests\UnitTestCase;
@@ -20,55 +21,33 @@ class DeliveryReportHandlerTest extends UnitTestCase {
    */
   public function testHandleMethod($raw, $expected_message_count, array $expected_result) {
     $handler = new DeliveryReportHandler();
-    /** @var \Drupal\sms\Message\SmsDeliveryReportInterface[] $reports */
-    $reports = $handler->handle($raw);
-    $this->assertEquals($expected_message_count, count($reports));
-    $this->assertEquals($expected_result, $reports);
+    $result = $handler->handle($raw);
+    $this->assertEquals($expected_message_count, count($result->getReports()));
+    $this->assertEquals($expected_result, $result->getReports());
   }
 
   public function providerMessageResponseHandler() {
-    $report1 = [
-      'status' => SmsDeliveryReportInterface::STATUS_SENT,
-      'delivered_time' => REQUEST_TIME,
-      'send_time' => REQUEST_TIME,
-      'error_code' => 0,
-      'error_message' => '',
-      'gateway_status' => 'SENT',
-      'gateway_error_code' => '',
-      'gateway_error_message' => '',
-    ];
     return [
       [
         DeliveryReportHandlerTestFixtures::$testDeliveryReport1,
         2,
         [
-          new SmsDeliveryReport([
-              'recipient' => '41793026731',
-              'message_id' => 'bcfb828b-7df9-4e7b-8715-f34f5c61271a',
-              'bulk_id' => '80664c0c-e1ca-414d-806a-5caf146463df',
-              'status' => SmsDeliveryReportInterface::STATUS_DELIVERED,
-              'delivered_time' => "2015-02-12T09:51:43.127+0100",
-              'send_time' => "2015-02-12T09:51:43.123+0100",
-              'error_code' => SmsGatewayPluginInterface::STATUS_OK,
-              'error_message' => 'No Error',
-              'gateway_status' => 'DELIVERED_TO_HANDSET',
-              'gateway_error_code' => 0,
-              'gateway_error_message' => 'No Error',
-            ] + $report1),
+          (new SmsDeliveryReport())
+            ->setRecipient('41793026731')
+            ->setMessageId('bcfb828b-7df9-4e7b-8715-f34f5c61271a')
+            ->setStatus(SmsMessageReportStatus::DELIVERED)
+            ->setStatusMessage('DELIVERED_TO_HANDSET')
+            ->setTimeQueued('2015-02-12T09:51:43.123+0100')
+            ->setTimeDelivered('2015-02-12T09:51:43.127+0100'),
+
           // @TODO Change this second one to a failed report.
-          new SmsDeliveryReport([
-              'recipient' => '41793026727',
-              'message_id' => '12db39c3-7822-4e72-a3ec-c87442c0ffc5',
-              'bulk_id' => '08fe4407-c48f-4d4b-a2f4-9ff583c985b8',
-              'status' => SmsDeliveryReportInterface::STATUS_DELIVERED,
-              'delivered_time' => "2015-02-12T09:50:22.232+0100",
-              'send_time' => "2015-02-12T09:50:22.221+0100",
-              'error_code' => SmsGatewayPluginInterface::STATUS_OK,
-              'error_message' => 'No Error',
-              'gateway_status' => 'DELIVERED_TO_HANDSET',
-              'gateway_error_code' => 0,
-              'gateway_error_message' => 'No Error',
-            ] + $report1),
+          (new SmsDeliveryReport())
+            ->setRecipient('41793026727')
+            ->setMessageId('12db39c3-7822-4e72-a3ec-c87442c0ffc5')
+            ->setStatus(SmsMessageReportStatus::DELIVERED)
+            ->setStatusMessage('DELIVERED_TO_HANDSET')
+            ->setTimeQueued("2015-02-12T09:50:22.221+0100")
+            ->setTimeDelivered("2015-02-12T09:50:22.232+0100"),
         ],
       ],
     ];
@@ -142,8 +121,4 @@ class DeliveryReportHandlerTestFixtures {
 }
 EOF;
 
-}
-
-if (!defined('REQUEST_TIME')) {
-  define('REQUEST_TIME', 1234567890);
 }
