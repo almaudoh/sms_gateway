@@ -20,7 +20,7 @@ class MessageResponseHandler extends InfobipResponseHandlerBase {
     $response = Json::decode($body);
     if ($response['messages']) {
       $result = (new SmsMessageResult())
-        ->setErrorMessage(new TranslatableMarkup('Message successfully delivered.'));
+        ->setErrorMessage(new TranslatableMarkup('Message submitted successfully'));
       $reports = [];
       foreach ($response['messages'] as $message) {
         $report = (new SmsDeliveryReport())

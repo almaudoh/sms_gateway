@@ -32,7 +32,7 @@ class MessageResponseHandlerTest extends UnitTestCase {
         MessageResponseHandlerTestFixtures::$testMessageResponse1,
         3,
         (new SmsMessageResult())
-          ->setErrorMessage(new TranslatableMarkup('Message successfully delivered.'))
+          ->setErrorMessage(new TranslatableMarkup('Message submitted successfully'))
           ->setReports([
             '41793026727' => (new SmsDeliveryReport())
               ->setStatus(SmsMessageReportStatus::QUEUED)
