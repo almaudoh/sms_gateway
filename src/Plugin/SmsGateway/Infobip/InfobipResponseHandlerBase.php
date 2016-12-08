@@ -3,6 +3,7 @@
 namespace Drupal\sms_gateway\Plugin\SmsGateway\Infobip;
 
 use Drupal\sms\Message\SmsMessageReportStatus;
+use Drupal\sms\Message\SmsMessageResultStatus;
 use Drupal\sms\Plugin\SmsGatewayPluginInterface;
 use Drupal\sms_gateway\Plugin\SmsGateway\ResponseHandlerInterface;
 
@@ -36,9 +37,8 @@ abstract class InfobipResponseHandlerBase implements ResponseHandlerInterface {
    * @param array $error
    *   The message error array containing the message error info.
    *
-   * @return array
-   *   An array containing information on the error. The error object with error
-   *   code (number or text) and error description if there is one.
+   * @return int
+   *   An error code in the list of SmsMessageReportStatus errors.
    */
   protected function mapError(array $error) {
     if (isset(self::$responseStatus[$error['id']]['map_to'])) {
@@ -197,6 +197,7 @@ abstract class InfobipResponseHandlerBase implements ResponseHandlerInterface {
       'name' => 'REJECTED_NOT_ENOUGH_CREDITS',
       'description' => 'Not enough credits',
       'group_id' => '5',
+      'map_to' => SmsMessageResultStatus::NO_CREDIT,
     ],
     '13' => [
       'name' => 'REJECTED_SENDER',
@@ -278,10 +279,10 @@ abstract class InfobipResponseHandlerBase implements ResponseHandlerInterface {
    * @var int[]
    */
   protected static $errorMap = [
-    '0' => SmsGatewayPluginInterface::STATUS_OK,
-    '1' => SmsGatewayPluginInterface::STATUS_ERR_OTHER,
-    '2' => SmsGatewayPluginInterface::STATUS_ERR_OTHER,
-    '3' => SmsGatewayPluginInterface::STATUS_ERR_OTHER,
+    '0' => SmsMessageReportStatus::DELIVERED,
+    '1' => SmsMessageReportStatus::ERROR,
+    '2' => SmsMessageReportStatus::ERROR,
+    '3' => SmsMessageReportStatus::ERROR,
   ];
 
   protected static $errorGroups = [

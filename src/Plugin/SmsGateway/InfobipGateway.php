@@ -20,6 +20,7 @@ use Symfony\Component\HttpFoundation\Response;
  *   label = @Translation("Infobip Gateway"),
  *   outgoing_message_max_recipients = 400,
  *   schedule_aware = FALSE,
+ *   reports_push = TRUE,
  *   credit_balance_available = TRUE
  * )
  */
