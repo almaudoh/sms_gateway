@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\Tests\sms_gateway\Unit\Plugin\SmsGateway;
+namespace Drupal\Tests\sms_gateway_base\Unit\Plugin\SmsGateway;
 
 use Drupal\Core\DependencyInjection\ContainerBuilder;
 use Drupal\Core\StringTranslation\TranslatableMarkup;

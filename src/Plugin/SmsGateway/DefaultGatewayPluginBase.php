@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\sms_gateway\Plugin\SmsGateway;
+namespace Drupal\sms_gateway_base\Plugin\SmsGateway;
 
 use Drupal\Component\Utility\Random;
 use Drupal\Core\Form\FormStateInterface;
@@ -158,7 +158,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    *   - headers: an array containing HTTP header names and values.
    *   - body: the string to be inserted into the HTTP body.
    *
-   * @see \Drupal\sms_gateway\Plugin\SmsGateway\DefaultGatewayPluginBase::doCommand().
+   * @see \Drupal\sms_gateway_base\Plugin\SmsGateway\DefaultGatewayPluginBase::doCommand().
    */
   abstract protected function getHttpParametersForCommand($command, array $data, array $config);
 

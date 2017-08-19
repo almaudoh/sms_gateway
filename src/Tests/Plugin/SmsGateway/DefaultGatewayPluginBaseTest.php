@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\sms_gateway\Tests\Plugin\SmsGateway;
+namespace Drupal\sms_gateway_base\Tests\Plugin\SmsGateway;
 
 use Drupal\Core\Url;
 use Drupal\simpletest\WebTestBase;
@@ -12,7 +12,7 @@ use Drupal\simpletest\WebTestBase;
  */
 class DefaultGatewayPluginBaseTest extends WebTestBase {
 
-	public static $modules = ['sms', 'sms_gateway', 'sms_gateway_test'];
+	public static $modules = ['sms', 'sms_gateway_base', 'sms_gateway_test'];
 	
   /**
    * Tests creating a gateway using the default configuration form.

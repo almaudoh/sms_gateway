@@ -6,9 +6,8 @@ use Drupal\Component\Render\FormattableMarkup;
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\sms\Message\SmsMessageResult;
 use Drupal\sms\Message\SmsMessageResultStatus;
-use Drupal\sms_gateway\Plugin\SmsGateway\DefaultGatewayPluginBase;
-use Drupal\sms_gateway\Plugin\SmsGateway\InvalidCommandException;
-use GuzzleHttp\Exception\GuzzleException;
+use Drupal\sms_gateway_base\Plugin\SmsGateway\DefaultGatewayPluginBase;
+use Drupal\sms_gateway_base\Plugin\SmsGateway\InvalidCommandException;
 use GuzzleHttp\Exception\TransferException;
 use Psr\Http\Message\ResponseInterface;
 

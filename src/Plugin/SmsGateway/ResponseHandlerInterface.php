@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\sms_gateway\Plugin\SmsGateway;
+namespace Drupal\sms_gateway_base\Plugin\SmsGateway;
 
 /**
  * Normalizes HTTP response from a gateway to an SmsMessageResult object.

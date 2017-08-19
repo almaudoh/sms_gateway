@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\sms_gateway\Plugin\SmsGateway;
+namespace Drupal\sms_gateway_base\Plugin\SmsGateway;
 
 use Drupal\Core\Form\FormStateInterface;
 use Drupal\sms\Message\SmsMessageInterface;

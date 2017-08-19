@@ -1,8 +1,8 @@
 <?php
 
-namespace Drupal\Tests\sms_gateway\Unit\Plugin\SmsGateway;
+namespace Drupal\Tests\sms_gateway_base\Unit\Plugin\SmsGateway;
 
-use Drupal\sms_gateway\Plugin\SmsGateway\InvalidCommandException;
+use Drupal\sms_gateway_base\Plugin\SmsGateway\InvalidCommandException;
 use Drupal\sms_gateway_test\Plugin\SmsGateway\FooLlamaGateway;
 use Drupal\Tests\UnitTestCase;
 use Prophecy\Argument;

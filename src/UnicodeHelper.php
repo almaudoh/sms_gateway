@@ -1,6 +1,6 @@
 <?php
 
-namespace Drupal\sms_gateway;
+namespace Drupal\sms_gateway_base;
 
 
 class UnicodeHelper {
