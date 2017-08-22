@@ -32,7 +32,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    * {@inheritdoc}
    */
   public function send(SmsMessageInterface $sms) {
-    return $this->doCommand('send', [
+    return $this->doCommand(GatewayCommand::SEND, [
       'recipients' => $sms->getRecipients(),
       'message' => $sms->getMessage(),
       'sender' => $sms->getSenderNumber(),
@@ -44,7 +44,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    * {@inheritdoc}
    */
   public function getCreditsBalance() {
-    $result = $this->doCommand('balance', []);
+    $result = $this->doCommand(GatewayCommand::BALANCE, []);
     if ($result->getError()) {
       return NULL;
     }
@@ -55,14 +55,14 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    * {@inheritdoc}
    */
   public function getDeliveryReports(array $message_ids = NULL) {
-    return $this->doCommand('report', ['message_ids' => $message_ids])->getReports();
+    return $this->doCommand(GatewayCommand::REPORT, ['message_ids' => $message_ids])->getReports();
   }
 
   /**
    * {@inheritdoc}
    */
   public function test(array $config = NULL) {
-    return $this->doCommand('test', [], $config);
+    return $this->doCommand(GatewayCommand::TEST, [], $config);
   }
 
   /**
@@ -94,6 +94,17 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
   protected function doCommand($command, array $data, array $config = NULL) {
     // Get params needed to make the HTTP request from the sub-class.
     $config = isset($config) ? $config : $this->getConfiguration();
+    if ($command === GatewayCommand::SEND) {
+      // Default values for send command.
+      $data += [
+        'isflash' => 0,
+        'sender' => \Drupal::config('system.site')->get('name'),
+        'numbers' => [],
+        'message' => '',
+      ];
+      $data['sender'] = $this->cleanSender($data['sender']);
+    }
+
     $params = $this->getHttpParametersForCommand($command, $data, $config)
       + [
         'query' => [],
