@@ -78,14 +78,14 @@ trait GatewayTestTrait {
     return $messages;
   }
 
-  public function simulateDeliveryReportPush(SmsGatewayInterface $gateway, $simulated_report) {
+  public function simulateDeliveryReportPush(SmsGatewayInterface $gateway, $headers = [], $simulated_report = '', $query = []) {
     // Get the delivery reports url and simulate push delivery report.
     $url = $gateway->getPushReportUrl()->setAbsolute()->toString();
     $client = $this->container->get('http_client');
     return $client->request('post', $url, [
-      'headers' => ['Accept' => 'application/json'],
+      'headers' => $headers,
       'body'    => $simulated_report,
-      'query'   => '',
+      'query'   => $query,
     ]);
   }
 
