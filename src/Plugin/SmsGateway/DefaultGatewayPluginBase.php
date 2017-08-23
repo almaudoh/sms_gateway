@@ -116,7 +116,7 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
     if ($url = $this->buildRequestUrl($command, $config)) {
       // Catch Guzzle Exceptions and show the user a useful message.
       try {
-        return $this->handleResponse($this->httpRequest($url, $params['query'], $params['method'], $params['headers'], $params['body']), $command, $data);
+        return $this->handleResponse($this->httpRequest($url, $params['query'], $params['method'], $params['headers'], $params['body']), $command, $data, $config);
       }
       catch (ConnectException $e) {
         return (new SmsMessageResult())
@@ -159,8 +159,8 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    *   The command for which the HTTP parameters are to be calculated.
    * @param array $data
    *   An array containing the data needed to execute the command.
-   * @param array|NULL $config
-   *   The configuration to be used for sending the message.
+   * @param array $config
+   *   The configuration to be used for executing the command.
    *
    * @return array
    *   An array containing the data needed to make a request:
@@ -182,11 +182,13 @@ abstract class DefaultGatewayPluginBase extends SmsGatewayPluginBase implements 
    *   The command.
    * @param array $data
    *   Additional data used by the command.
+   * @param array $config
+   *   The configuration to be used for executing the command.
    *
    * @return \Drupal\sms\Message\SmsMessageResultInterface
    *   An SMS message result object.
    */
-  abstract protected function handleResponse(ResponseInterface $response, $command, $data);
+  abstract protected function handleResponse(ResponseInterface $response, $command, array $data, array $config);
 
   /**
    * Builds the request URL based on the settings configured for this gateway.

@@ -65,7 +65,7 @@ class FooLlamaGateway extends DefaultGatewayPluginBase {
   /**
    * {@inheritdoc}
    */
-  protected function handleResponse(ResponseInterface $response, $command, $data) {
+  protected function handleResponse(ResponseInterface $response, $command, array $data, array $config) {
     // Check for HTTP errors.
     if ($response->getStatusCode() !== 200) {
       // Add this to the errors list.
@@ -93,6 +93,16 @@ class FooLlamaGateway extends DefaultGatewayPluginBase {
       }
     }
   }
+
+  /**
+   * Verifies the response.
+   *
+   * @param string $body
+   *   The body text to verify.
+   *
+   * @return bool
+   *   True if the body contains the specific response.
+   */
   protected function verifyResponse($body) {
     return strpos($body, 'This domain is established to be used for illustrative examples in documents.') !== FALSE;
   }
